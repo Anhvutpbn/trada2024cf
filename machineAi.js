@@ -43,9 +43,12 @@ class GameMap {
         this.mapHeight = 14;
         this.player = null;
 
-        // Trạng thái emit
+        // Trạng thái di chuyển và phá tường
         this.emitStatus = false;
-        this.isBreaking = false; // Trạng thái đang phá tường
+        this.isMoving = false;
+        this.isBreaking = false;
+        this.currentTarget = null;
+        this.isWaitingAtGodBadge = false; 
     }
 
     parseTicktack(id, res) {
@@ -56,7 +59,10 @@ class GameMap {
         const currentPlayer = res.map_info.players.find(p => this.playerId.includes(p.id));
         this.player = new GamePlayer(this, currentPlayer);
 
-        this.decideNextAction();
+        const hasTransform = this.player.playerInfo.hasTransform;
+
+        console.log("hasTransform:", hasTransform ? "Player is transformed." : "Player is not transformed.");
+        this.decideNextAction(hasTransform);
     }
 
     to1dPos(x, y) {
@@ -68,74 +74,16 @@ class GameMap {
         const y = Math.floor(pos / this.mapWidth);
         return { x, y };
     }
-
-    decideNextAction() {
-        const playerPosition = this.player.position;
-
-        // 1. Kiểm tra vật phẩm sát bên
-        const adjacentItemDir = this.checkAdjacentForItem(playerPosition);
-        if (adjacentItemDir !== null) {
-            console.log(`Facing item at direction: ${adjacentItemDir}`);
-            this.emitDriver('drive player', { direction: adjacentItemDir });
-            return;
-        }
-
-        // 2. Tìm Huy Hiệu Thần (GodBadge) gần nhất
-        const closestGodBadge = this.findClosestCell(playerPosition, MapCell.GodBadge);
-        if (closestGodBadge !== null) {
-            const pathToBadge = this.findPath(playerPosition, closestGodBadge);
-            if (pathToBadge && this.isPathValid(pathToBadge)) { // Chỉ hành động nếu đường hợp lệ
-                console.log(`Move to collect GodBadge at position: ${closestGodBadge}`);
-                return this.moveTo(pathToBadge);
+    
+    shouldBreak(position) {
+        const neighbors = this.getNeighborNodes(position);
+        for (let neighbor of neighbors) {
+            const cellValue = this.flatMap[neighbor.pos];
+            if (cellValue === MapCell.BrickWall || cellValue === MapCell.Player) {
+                return true; // Có tường gạch hoặc player xung quanh
             }
         }
-
-        // 3. Tìm Tường Gạch (BrickWall) gần nhất
-        const closestBrickWall = this.findClosestCell(playerPosition, MapCell.BrickWall);
-        if (closestBrickWall !== null) {
-            const pathToBrick = this.findPath(playerPosition, closestBrickWall);
-            if (pathToBrick) { // Không cần kiểm tra tính hợp lệ vì BrickWall là mục tiêu
-                console.log(`Move to destroy BrickWall at position: ${closestBrickWall}`);
-                return this.moveToAndBreakProperly(pathToBrick, closestBrickWall);
-            }
-        }
-
-        console.log("No action possible.");
-        return null;
-    }
-
-    moveTo(path) {
-        if (path.length > 0) {
-            const nextMove = path[0];
-            this.emitDriver('drive player', { direction: nextMove });
-        }
-    }
-
-    moveToAndBreakProperly(path, targetPos) {
-        if (path.length > 0) {
-            const nextMove = path.shift(); // Lấy bước di chuyển đầu tiên
-            console.log(`Moving towards BrickWall, direction: ${nextMove}`);
-            this.emitDriver('drive player', { direction: nextMove });
-
-            // Kiểm tra nếu đã đến BrickWall
-            setTimeout(() => {
-                if (path.length === 0) {
-                    console.log(`Reached BrickWall at position: ${targetPos}, breaking it!`);
-                    this.emitDriver('drive player', { direction: "b" }); // Thực hiện phá tường
-
-                    // Cập nhật map sau khi phá
-                    this.updateMapAfterBreaking(targetPos);
-
-                    // Sau khi phá xong, quyết định hành động tiếp theo
-                    setTimeout(() => {
-                        this.decideNextAction();
-                    }, 500); // Cho thời gian hành động tiếp theo
-                } else {
-                    // Nếu chưa đến, tiếp tục di chuyển
-                    this.moveToAndBreakProperly(path, targetPos);
-                }
-            }, 500); // Delay giữa các bước di chuyển
-        }
+        return false;
     }
 
     updateMapAfterBreaking(targetPos) {
@@ -143,44 +91,107 @@ class GameMap {
         this.flatMap[targetPos] = MapCell.Road; // Biến tường gạch thành đường trống
     }
 
-    checkAdjacentForItem(playerPosition) {
-        const neighbors = this.getNeighborNodes(playerPosition);
-
-        for (let neighbor of neighbors) {
-            const { pos, dir } = neighbor;
-
-            if (this.flatMap[pos] === MapCell.BrickWall) {
-                if (!this.isBreaking) {
-                    this.isBreaking = true;
-                    console.log(`Breaking BrickWall at direction: ${dir}`);
-                    this.emitDriver('drive player', { direction: dir });
-                    setTimeout(() => {
-                        this.emitDriver('drive player', { direction: "b" });
-                        this.updateMapAfterBreaking(pos); // Cập nhật map sau khi phá
-                        this.isBreaking = false;
-
-                        // Quyết định hành động tiếp theo
-                        this.decideNextAction();
-                    }, 500);
+    decideNextAction(hasTransform) {
+        if (this.isMoving || this.isBreaking || this.isWaitingAtGodBadge) {
+            return; // Không gửi lệnh mới nếu đang di chuyển, phá tường, hoặc chờ tại GodBadge
+        }
+    
+        const playerPosition = this.player.position;
+        console.log("hasTransform----------------------------------", hasTransform)
+        // Nếu đã biến hình, bỏ qua GodBadge
+        if (hasTransform || hasTransform == undefined) {
+            console.log("Player is transformed. Skipping GodBadge.");
+        } else {
+            // Ưu tiên đến GodBadge nếu chưa biến hình
+            const closestGodBadge = this.findClosestCell(playerPosition, MapCell.GodBadge);
+            if (closestGodBadge !== null && this.currentTarget !== closestGodBadge) {
+                const pathToBadge = this.findPath(playerPosition, closestGodBadge);
+                if (pathToBadge && this.isPathValid(pathToBadge, playerPosition)) {
+                    console.log(`Move to GodBadge at position: ${closestGodBadge}`);
+                    this.currentTarget = closestGodBadge; // Lưu mục tiêu hiện tại
+                    return this.moveToAndWait(pathToBadge, 4000); // Đứng tại GodBadge trong 4 giây
                 }
-                return null;
-            }
-
-            if (this.flatMap[pos] === MapCell.GodBadge) {
-                return dir;
             }
         }
-
+    
+        // Nếu đã biến hình hoặc không có GodBadge, thực hiện hành động khác
+        const closestBrickWall = this.findClosestCell(playerPosition, MapCell.BrickWall);
+        if (closestBrickWall !== null && this.currentTarget !== closestBrickWall) {
+            const pathToBrick = this.findPath(playerPosition, closestBrickWall);
+            if (pathToBrick) {
+                console.log(`Move to destroy BrickWall at position: ${closestBrickWall}`);
+                this.currentTarget = closestBrickWall; // Lưu mục tiêu hiện tại
+                return this.moveToAndBreakProperly(pathToBrick, closestBrickWall);
+            }
+        }
+    
+        console.log("No action possible.");
+        this.currentTarget = null;
         return null;
     }
+    
+    moveToAndWait(path, waitTime) {
+        if (path.length > 0) {
+            this.isMoving = true;
+            const nextMove = path.shift();
+            console.log(`Moving to direction: ${nextMove}`);
+            this.emitDriver('drive player', { direction: nextMove });
+    
+            setTimeout(() => {
+                this.isMoving = false;
+                if (path.length > 0) {
+                    this.moveToAndWait(path, waitTime); // Tiếp tục di chuyển
+                } else {
+                    console.log(`Arrived at GodBadge, standing for ${waitTime / 1000} seconds.`);
+                    this.isWaitingAtGodBadge = true; // Đặt trạng thái chờ tại GodBadge
+                    setTimeout(() => {
+                        console.log("Finished standing at GodBadge.");
+                        this.isWaitingAtGodBadge = false; // Reset trạng thái sau khi hoàn thành chờ
+                        this.decideNextAction(); // Thực hiện hành động tiếp theo
+                    }, waitTime);
+                }
+            }, 500);
+        }
+    }
+    
+
+    moveToAndBreakProperly(path, targetPos) {
+        if (path.length > 0) {
+            this.isMoving = true;
+            const nextMove = path.shift();
+            console.log(`Moving towards BrickWall, direction: ${nextMove}`);
+            this.emitDriver('drive player', { direction: nextMove });
+    
+            setTimeout(() => {
+                this.isMoving = false;
+                if (path.length === 0) {
+                    console.log(`Reached BrickWall at position: ${targetPos}`);
+                    if (this.shouldBreak(this.player.position)) {
+                        console.log("Breaking BrickWall!");
+                        this.isBreaking = true;
+                        this.emitDriver('drive player', { direction: "b" });
+                        this.updateMapAfterBreaking(targetPos);
+    
+                        setTimeout(() => {
+                            this.isBreaking = false;
+                            this.currentTarget = null; // Đặt lại mục tiêu hiện tại sau khi hoàn tất
+                            this.decideNextAction(); // Thực hiện hành động tiếp theo
+                        }, 500);
+                    }
+                } else {
+                    this.moveToAndBreakProperly(path, targetPos);
+                }
+            }, 500);
+        }
+    }
+    
 
     emitDriver(event, data) {
         if (!this.emitStatus) {
-            console.log("emitStatus-----------------------------", event, data)
-            this.emitStatus = true; // Đặt trạng thái emit là true
-            this.socket.emit(event, data); // Thực hiện emit
+            console.log(`Emitting event: ${event} with data:`, data);
+            this.emitStatus = true;
+            this.socket.emit(event, data);
 
-            // Đặt lại trạng thái emit sau 0.5 giây
             setTimeout(() => {
                 this.emitStatus = false;
             }, 500);
@@ -196,7 +207,7 @@ class GameMap {
         this.flatMap.forEach((cell, index) => {
             if (cell === cellType) {
                 const path = this.findPath(playerPosition, index);
-                if (path && path.length > 0) { // Đảm bảo có đường hợp lệ
+                if (path && path.length > 0) {
                     const distance = path.length;
                     if (distance < minDistance) {
                         minDistance = distance;
@@ -231,17 +242,26 @@ class GameMap {
         return null;
     }
 
-    isPathValid(path) {
-        // Kiểm tra đường đi chỉ bao gồm ô MapCell.Road
+    isPathValid(path, startPos) {
+        let currentPos = startPos; // Bắt đầu từ vị trí hiện tại
         for (const step of path) {
-            const nextPos = this.to2dPos(step);
-            const cellValue = this.flatMap[this.to1dPos(nextPos.x, nextPos.y)];
+            // Tính vị trí tiếp theo dựa trên bước đi
+            const { x, y } = this.to2dPos(currentPos);
+            if (step === MoveDirection.UP) currentPos = this.to1dPos(x, y - 1);
+            if (step === MoveDirection.DOWN) currentPos = this.to1dPos(x, y + 1);
+            if (step === MoveDirection.LEFT) currentPos = this.to1dPos(x - 1, y);
+            if (step === MoveDirection.RIGHT) currentPos = this.to1dPos(x + 1, y);
+    
+            // Kiểm tra nếu ô không hợp lệ
+            const cellValue = this.flatMap[currentPos];
             if (cellValue !== MapCell.Road && cellValue !== MapCell.GodBadge) {
-                return false; // Đường không hợp lệ
+                console.log(`Invalid cell found at position ${currentPos}: ${cellValue}`);
+                return false;
             }
         }
-        return true;
+        return true; // Tất cả các ô hợp lệ
     }
+    
 
     getNeighborNodes(val) {
         const cols = this.mapWidth;
@@ -293,8 +313,5 @@ class GameMap {
         return null;
     }
 }
-
-module.exports = { MapCell, MoveDirection, TreeNode, GamePlayer, GameMap };
-
 
 module.exports = { MapCell, MoveDirection, TreeNode, GamePlayer, GameMap };

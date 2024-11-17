@@ -1,5 +1,5 @@
-import { MapCell, MoveDirection, TreeNode, GamePlayer, GameMap } from './machineAi.js';
-const gameId = '8ac44cdc-7408-4a42-a68c-0319dbaaad92';
+import {MapCell, MoveDirection, TreeNode, GamePlayer, GameMap } from './machineAi.js';
+const gameId = '033b5e51-5b10-4fdd-a5d0-55ec28f41649';
 
 
 let MAP = {};

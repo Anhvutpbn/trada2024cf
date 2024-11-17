@@ -6,7 +6,7 @@ const apiServer = 'http://192.168.1.177'; // Đổi thành URL server của bạ
 const socket = connect(apiServer, { reconnect: true, transports: ['websocket'] });
 
 const playerId = 'player2-xxx'; // ID người chơi
-const optionJoin = { game_id: '8ac44cdc-7408-4a42-a68c-0319dbaaad92', player_id: playerId };
+const optionJoin = { game_id: '033b5e51-5b10-4fdd-a5d0-55ec28f41649', player_id: playerId };
 
 // Khởi tạo giao diện để nhập từ command line
 const rl = readline.createInterface({
@@ -33,11 +33,10 @@ socket.on('error', (err) => {
 
 // Sự kiện nhận ticktack từ server
 socket.on('ticktack player', (res) => {
-    console.log('[Socket] TickTack data received:', res);
-
+    console.log(res.map_info.players)
     // Đọc chuỗi lệnh từ người dùng
-    rl.question('Enter command sequence (e.g., 111222b): ', (input) => {
-        const validCommands = ['1', '2', '3', '4', 'b'];
+    rl.question('Enter command sequence (e.g., 111222b or s): ', (input) => {
+        const validCommands = ['1', '2', '3', '4', 'b', 's']; // Thêm 's' vào danh sách lệnh hợp lệ
         const commands = input.split(''); // Chia chuỗi thành mảng các ký tự
 
         const processCommand = (index) => {
@@ -48,9 +47,17 @@ socket.on('ticktack player', (res) => {
 
             const command = commands[index];
             if (validCommands.includes(command)) {
-                // Gửi lệnh qua socket
-                socket.emit('drive player', { direction: command });
-                console.log(`[Command] Sent direction: ${command}`);
+                if (command === 's') {
+                    // Gửi lệnh "switch weapon"
+                    socket.emit('action', {
+                        action: "switch weapon"
+                    });
+                    console.log(`[Command] Sent action: switch weapon`);
+                } else {
+                    // Gửi lệnh lái player
+                    socket.emit('drive player', { direction: command });
+                    console.log(`[Command] Sent direction: ${command}`);
+                }
 
                 // Chờ 500ms trước khi gửi lệnh tiếp theo (tùy chỉnh thời gian chờ nếu cần)
                 setTimeout(() => processCommand(index + 1), 500);
@@ -64,6 +71,7 @@ socket.on('ticktack player', (res) => {
         processCommand(0);
     });
 });
+
 
 // Đóng readline khi kết thúc
 socket.on('end', () => {
