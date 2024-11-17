@@ -13,7 +13,7 @@ const io = require('socket.io-client');
 const apiServer = 'http://localhost/';
 const socket = io.connect(apiServer, {reconnect: true, transports: ['websocket']});
 const playerId = '9728f232-51e9';
-const optionJoin = {game_id: gameId, player_id: "player1-xxx"}
+const optionJoin = {game_id: gameId, player_id: "player2-xxx"}
 
 // It it required to emit `join channel` event every time connection is happened
 socket.on('connect', () => {
