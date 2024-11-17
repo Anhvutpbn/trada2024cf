@@ -1,4 +1,4 @@
-const gameId = 'e6c1b703-58fe-465c-8650-c77fe75dd752';
+const gameId = '5bdfa5d1-eecd-4d2d-81b2-bc8d98ccc101';
 
 
 let MAP = {};
@@ -10,7 +10,7 @@ let players;
 
 // client.js
 const io = require('socket.io-client');
-const apiServer = 'http://localhost/';
+const apiServer = 'http://192.168.1.177';
 const socket = io.connect(apiServer, {reconnect: true, transports: ['websocket']});
 const playerId = '9728f232-51e9';
 const optionJoin = {game_id: gameId, player_id: "player2-xxx"}
@@ -103,7 +103,9 @@ const DIA_LAO = 6
 //API-2
 socket.on('ticktack player', (res) => {
    console.log(res)
-
+    for (let row = 0; row < res.map_info.map.length; row++) {
+        console.log(res.map_info.map[row].join(' '));
+    }
    /**
     * Từ res sẽ lấy ra các thông số của game. hiện tại cần 1 số thông số sau
     * - Lấy vị trí đứng của player ( x-y)
@@ -115,5 +117,18 @@ socket.on('ticktack player', (res) => {
     * - Tìm đường đến vật phẩm / hộp gỗ / điểm né tránh nguy hiểm gần nhất
     * - 
     */
-
+    // 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+    // 1 0 0 3 3 0 3 0 0 0 0 0 0 0 0 0 0 0 0 3 0 3 3 0 0 1
+    // 1 0 1 3 2 2 2 2 2 2 0 2 2 2 2 0 2 2 2 2 2 2 3 1 0 1
+    // 1 0 2 1 0 0 0 2 2 0 0 2 2 2 2 0 0 0 2 0 0 0 1 2 0 1
+    // 1 0 2 2 1 5 0 2 2 0 2 1 1 1 1 2 0 0 2 0 5 1 2 2 0 1
+    // 1 0 0 2 2 1 2 2 2 0 2 1 2 2 1 2 0 0 2 2 1 2 2 0 0 1
+    // 1 0 0 0 2 3 2 2 0 0 2 2 2 2 2 2 0 0 2 2 3 2 0 0 0 1
+    // 1 0 0 0 3 0 3 3 0 0 2 6 0 0 6 2 0 0 3 3 0 3 0 0 0 1
+    // 1 0 0 2 2 1 2 2 0 2 2 0 0 0 0 2 2 0 2 2 1 2 2 0 0 1
+    // 1 0 2 2 1 5 0 2 0 2 2 0 0 0 0 2 2 0 2 0 5 1 2 2 0 1
+    // 1 0 2 1 0 0 0 0 0 3 3 0 3 3 0 3 3 0 0 0 0 0 1 2 0 1
+    // 1 0 1 2 2 2 2 2 0 2 2 2 0 0 2 2 2 0 2 2 2 2 2 1 0 1
+    // 1 0 0 3 0 3 0 3 0 0 0 0 0 0 0 0 0 0 3 0 3 0 3 0 0 1
+    // 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
 });
