@@ -148,26 +148,24 @@ class GameMap {
     }
     
     moveToAndWait(path, waitTime) {
-        if (path.length > 0) {
+        if (path && path.length > 0) {
+            console.log(`Sending path to wait at destination: ${path}`);
             this.isMoving = true;
-            const nextMove = path.shift();
-            console.log(`Moving to direction: ${nextMove}`);
-            this.emitDriver('drive player', { direction: nextMove });
+            this.moveTo(path);
     
             setTimeout(() => {
+                console.log(`Arrived at destination, waiting for ${waitTime / 1000} seconds.`);
                 this.isMoving = false;
-                if (path.length > 0) {
-                    this.moveToAndWait(path, waitTime); // Tiếp tục di chuyển
-                } else {
-                    console.log(`Arrived at GodBadge, standing for ${waitTime / 1000} seconds.`);
-                    this.isWaitingAtGodBadge = true; // Đặt trạng thái chờ tại GodBadge
-                    setTimeout(() => {
-                        console.log("Finished standing at GodBadge.");
-                        this.isWaitingAtGodBadge = false; // Reset trạng thái sau khi hoàn thành chờ
-                        this.decideNextAction(); // Thực hiện hành động tiếp theo
-                    }, waitTime);
-                }
-            }, 500);
+                this.isWaitingAtGodBadge = true;
+    
+                setTimeout(() => {
+                    console.log("Finished waiting at GodBadge.");
+                    this.isWaitingAtGodBadge = false;
+                    this.decideNextAction(); // Tiếp tục hành động tiếp theo
+                }, waitTime);
+            }, path.length * 500); // Thời gian di chuyển phụ thuộc vào độ dài path
+        } else {
+            console.log("No valid path to move and wait.");
         }
     }
     
@@ -175,9 +173,8 @@ class GameMap {
     moveToAndBreakProperly(path, targetPos) {
         if (path.length > 0) {
             this.isMoving = true;
-            const nextMove = path.shift();
-            console.log(`Moving towards BrickWall, direction: ${nextMove}`);
-            this.emitDriver('drive player', { direction: nextMove });
+            console.log(`Moving towards BrickWall, direction: ${path}`);
+            this.moveTo(path);
     
             setTimeout(() => {
                 this.isMoving = false;
@@ -426,27 +423,23 @@ class GameMap {
             return;
         }
     
-        console.log(`Placing bomb at ${bombPosition}`);
-        this.currentTarget = bombPosition; // Lưu vị trí bomb hiện tại
+        console.log(`Placing bomb at position: ${bombPosition}`);
+        this.currentTarget = bombPosition;
+        this.emitDriver('drive player', { direction: "b" }); // Lệnh đặt bomb
     
-        // Đặt bomb
-        this.emitDriver('drive player', { direction: "b" });
-    
-        // Tìm vị trí an toàn
         const safePosition = this.findSafePosition(bombPosition);
-        console.log(" SAFE VCL --------------", safePosition)
         if (safePosition !== null) {
             const pathToSafe = this.findPath(this.player.position, safePosition);
-            console.log(" SAFE VCL --------------pathToSafe", pathToSafe)
+            console.log(`Safe position found at ${safePosition}, moving with path: ${pathToSafe}`);
             if (pathToSafe && pathToSafe.length > 0) {
-                console.log(`Moving to safe position at ${safePosition}`);
-                return this.moveTo(pathToSafe);
+                this.moveTo(pathToSafe);
             }
+        } else {
+            console.log("No safe position found. Attempting manual escape.");
+            this.moveManuallyAwayFromBomb(bombPosition);
         }
-    
-        console.log("No safe position found. Attempting manual escape.");
-        this.moveManuallyAwayFromBomb(bombPosition);
     }
+    
     
 
     // Hàm xác định vùng ảnh hưởng của bomb
@@ -683,4 +676,4 @@ class GameMap {
     
 }
 
-module.exports = { MapCell, MoveDirection, TreeNode, GamePlayer, GameMap };
+export { MapCell, MoveDirection, TreeNode, GamePlayer, GameMap };
