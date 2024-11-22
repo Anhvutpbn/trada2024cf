@@ -1,12 +1,12 @@
-const readline = require('readline');
-const { connect } = require('socket.io-client');
+import readline from 'readline';
+import { io } from 'socket.io-client';
 
 // Kết nối tới server
-const apiServer = 'http://192.168.1.222'; // Đổi thành URL server của bạn
-const socket = connect(apiServer, { reconnect: true, transports: ['websocket'] });
+const apiServer = 'http://192.168.1.229'; // Đổi thành URL server của bạn
+const socket = io(apiServer, { reconnect: true, transports: ['websocket'] });
 
 const playerId = 'player2-xxx'; // ID người chơi
-const optionJoin = { game_id: 'd94d533b-f5d4-4212-96c7-98d6e1473d54', player_id: playerId };
+const optionJoin = { game_id: '87f1b173-a405-48d8-bf3f-79b7b76d2981', player_id: playerId };
 
 // Khởi tạo giao diện để nhập từ command line
 const rl = readline.createInterface({
@@ -33,7 +33,7 @@ socket.on('error', (err) => {
 
 // Sự kiện nhận ticktack từ server
 socket.on('ticktack player', (res) => {
-    console.log(res.map_info.players)
+    console.log(res.map_info.players);
     // Đọc chuỗi lệnh từ người dùng
     rl.question('Enter command sequence (e.g., 111222b or s): ', (input) => {
         const validCommands = ['1', '2', '3', '4', 'b', 's']; // Thêm 's' vào danh sách lệnh hợp lệ
@@ -50,7 +50,7 @@ socket.on('ticktack player', (res) => {
                 if (command === 's') {
                     // Gửi lệnh "switch weapon"
                     socket.emit('action', {
-                        action: "switch weapon"
+                        action: "switch weapon",
                     });
                     console.log(`[Command] Sent action: switch weapon`);
                 } else {
@@ -71,7 +71,6 @@ socket.on('ticktack player', (res) => {
         processCommand(0);
     });
 });
-
 
 // Đóng readline khi kết thúc
 socket.on('end', () => {

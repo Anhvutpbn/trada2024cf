@@ -6,7 +6,8 @@ const MapCell = {
     BrickWall: 3,      // Tường gạch (Dùng Chày gỗ để phá, thường là vật cản tới 'Huy Hiệu Thần')
     Jail: 5,           // Nhà tù
     GodBadge: 6,       // Huy Hiệu Thần (Đứng ở đây 3s để trở thành Bất Tử)
-    SpecialZone: 7     // Vùng đất bị phá hủy bởi vũ khí đặc biệt (Có thể di chuyển qua)
+    SpecialZone: 7,   // Vùng đất bị phá hủy bởi vũ khí đặc biệt (Có thể di chuyển qua)
+    BombZone: 77
 };
 
 const MoveDirection = {
@@ -49,6 +50,11 @@ class GameMap {
         this.isBreaking = false;
         this.currentTarget = null;
         this.isWaitingAtGodBadge = false; 
+
+         // Trạng thái đứng yên
+         this.lastMoveTime = Date.now(); // Lần cuối cùng di chuyển
+         this.lastPosition = null; // Vị trí lần cuối
+         this.hasPlacedBomb = false; // Trạng thái: Đã đặt bomb
     }
 
     parseTicktack(id, res) {
@@ -58,12 +64,124 @@ class GameMap {
         this.mapHeight = res.map_info.size.rows;
         const currentPlayer = res.map_info.players.find(p => this.playerId.includes(p.id));
         this.player = new GamePlayer(this, currentPlayer);
-
+    
         const hasTransform = this.player.playerInfo.hasTransform;
         this.bombs = res.map_info.bombs.filter(bomb => bomb.playerId === this.player.playerInfo.id);
-        console.log("hasTransform:", hasTransform ? "Player is transformed." : "Player is not transformed.");
+        
+        console.log("----------------------------------------------------------")
+        console.log("----" + this.bombs.length, this.hasPlacedBomb, hasTransform)
+        console.log("this.isMoving:  " + this.isMoving)
+        console.log("this.bombs:  " , res.map_info.bombs)
+        console.log("----------------------------------------------------------")
+        
+        // Kiểm tra trạng thái đứng yên
+        this.checkIdleStatus();
+    
+        // Lặp qua tất cả các bomb trên bản đồ và tính toán vùng ảnh hưởng
+        res.map_info.bombs.forEach(bomb => {
+            const bombPosition = this.to1dPos(bomb.col, bomb.row);
+            this.replaceBombImpactWithSpecialZone(bombPosition)
+        });
+        this.printMap2D();
+        console.log("Player position: |" + this.player.position, this.flatMap[this.player.position])        
+        if(this.flatMap[this.player.position] == MapCell.BombZone) {
+            this.escapeFromDangerZone()
+        }
+        if (this.bombs.length == 0) {
+            this.hasPlacedBomb = false;
+        } else {
+            this.isMoving = false;
+            this.isBreaking = false;
+            this.hasPlacedBomb = true;
+        }
+    
+        // Nếu không trong vùng nguy hiểm, tiếp tục xử lý logic thông thường
+        console.log("Nếu không trong vùng nguy hiểm, tiếp tục xử lý logic thông thường", this.hasPlacedBomb)     
         this.decideNextAction(hasTransform);
     }
+    
+    replaceBombImpactWithSpecialZone(bombPosition) {
+        const bombImpactArea = this.getBombImpactArea(bombPosition);
+        bombImpactArea.forEach(position => {
+            if (this.flatMap[position] !== MapCell.Border) {
+                this.flatMap[position] = MapCell.BombZone; // Thay thế bằng số 77
+            }
+        });
+        console.log(`Replaced bomb impact area with Special Zone at positions: ${[...bombImpactArea]}`);
+    }
+
+    isPlayerInDangerZone() {
+        const playerPosition = this.player.position;
+        console.log("POSITION: "+ playerPosition)
+        // Duyệt qua tất cả bomb để kiểm tra vùng ảnh hưởng
+        return this.bombs.some(bomb => {
+            const bombPosition = this.to1dPos(bomb.col, bomb.row);
+            const bombImpactArea = this.getBombImpactArea(bombPosition);
+            this.replaceBombImpactWithSpecialZone(bombPosition);
+            return bombImpactArea.has(playerPosition);
+        });
+
+
+    }
+    
+    escapeFromDangerZone() {
+        const playerPosition = this.player.position;
+    
+        // Tìm vị trí an toàn gần nhất
+        let safePosition = null;
+        for (const bomb of this.bombs) {
+            const bombPosition = this.to1dPos(bomb.col, bomb.row);
+            safePosition = this.findSafePosition(bombPosition, true); // Cho phép thoát qua vùng nguy hiểm nếu cần
+            if (safePosition !== null) break;
+        }
+        // console.log(`||||-------safe position: ${safePosition.path}`);
+        if (safePosition !== null) {
+            if (safePosition.path != null) {
+                console.log(`Escaping to safe position: ${safePosition}`);
+                this.forceMoveTo(safePosition.path); // Di chuyển ngay lập tức
+            } else {
+                console.warn("No valid path to safe position. Attempting manual escape.");
+                this.forceMoveManuallyAwayFromBomb(playerPosition);
+            }
+        } else {
+            console.warn("No safe position found. Attempting manual escape.");
+            this.forceMoveManuallyAwayFromBomb(playerPosition);
+        }
+    }
+
+    
+    checkIdleStatus() {
+        const currentPosition = this.player.position;
+
+        if (this.lastPosition === currentPosition) {
+            const timeSinceLastMove = Date.now() - this.lastMoveTime;
+
+            if (timeSinceLastMove > 5000) { // Nếu đứng yên quá 7 giây
+                console.warn(`Player is idle for more than 7 seconds. Forcing a move.`);
+                this.forceRandomMove();
+                this.lastMoveTime = Date.now(); // Cập nhật thời gian di chuyển cuối
+            }
+        } else {
+            this.lastPosition = currentPosition;
+            this.lastMoveTime = Date.now(); // Cập nhật thời gian di chuyển cuối
+        }
+    }
+
+    forceRandomMove() {
+        const neighbors = this.getNeighborNodes(this.player.position);
+
+        // Chọn ngẫu nhiên một ô lân cận có thể di chuyển
+        const validNeighbors = neighbors.filter(({ pos }) => this.flatMap[pos] === MapCell.Road);
+
+        if (validNeighbors.length > 0) {
+            const randomNeighbor = validNeighbors[Math.floor(Math.random() * validNeighbors.length)];
+            console.log(`Forced move to direction: ${randomNeighbor.dir}`);
+            this.emitDriver('drive player', { direction: randomNeighbor.dir });
+        } else {
+            console.warn(`No valid moves found for forced movement.`);
+        }
+    } 
+
 
     to1dPos(x, y) {
         return y * this.mapWidth + x;
@@ -93,59 +211,80 @@ class GameMap {
 
     decideNextAction(hasTransform) {
         if (this.isMoving || this.isBreaking || this.isWaitingAtGodBadge) {
-            return; // Không gửi lệnh mới nếu đang di chuyển, phá tường, hoặc chờ tại GodBadge
+            console.log("Currently busy with another action. Skipping decideNextAction.");
+            return; // Không thực hiện thêm hành động khi đang bận
         }
+    
         const playerPosition = this.player.position;
-        // Nếu đã biến hình, bỏ qua GodBadge
-        if(hasTransform == undefined) { return; }
-        else if (hasTransform) {
+        console.warn("-------=-------------------");
+        if (hasTransform === undefined) {
+            console.warn("Transform state is undefined. Skipping action.");
+            return;
+        }
+        console.warn("Nếu đã transformed, chỉ đặt bomb và tránh vùng nổ");
+        // Nếu đã transformed, chỉ đặt bomb và tránh vùng nổ
+        if (hasTransform) {
             console.log("Player is transformed. Switching to bomb logic.");
-
-            // Đảm bảo đang sử dụng bomb
+    
             if (this.player.playerInfo.currentWeapon !== 2) {
                 console.log("Switching to bomb weapon...");
                 this.socket.emit('action', { action: "switch weapon" });
                 this.player.playerInfo.currentWeapon = 2; // Cập nhật trạng thái weapon
                 return;
             }
-
-            // Tìm vị trí đặt bomb tối ưu
-            const bombPosition = this.findOptimalBombPosition(playerPosition);
-            if (bombPosition) {
-                console.log(`Optimal bomb position found: ${bombPosition}`);
-                return this.placeBombAndRetreat(bombPosition);
-            } else {
-                console.log("No optimal position to place bomb. TODO: Implement alternative logic.");
-                return;
-            }
-        } else {
-            // Ưu tiên đến GodBadge nếu chưa biến hình
-            const closestGodBadge = this.findClosestCell(playerPosition, MapCell.GodBadge);
-            if (closestGodBadge !== null && this.currentTarget !== closestGodBadge) {
-                const pathToBadge = this.findPath(playerPosition, closestGodBadge);
-                if (pathToBadge && this.isPathValid(pathToBadge, playerPosition)) {
-                    console.log(`Move to GodBadge at position: ${closestGodBadge}`);
-                    this.currentTarget = closestGodBadge; // Lưu mục tiêu hiện tại
-                    return this.moveToAndWait(pathToBadge, 4000); // Đứng tại GodBadge trong 4 giây
+    
+            if (!this.hasPlacedBomb) {
+                console.log("-----------placeBombAndRetreat Find path plan")
+                const bombPosition = this.findOptimalBombPosition(playerPosition);
+                console.log("-----------placeBombAndRetreat Find path plan result ", bombPosition)
+                if (bombPosition) {
+                    this.placeBombAndRetreat(bombPosition);
+                    console.log("-----------placeBombAndRetreat")  
+                    return;
+                } else {
+                    console.log("No optimal bomb position found. Waiting for next action.");
+                    return;
                 }
+            } else {
+                console.log("Bomb is already placed. Waiting for next action.");
+                return;
             }
         }
     
-        // Nếu đã biến hình hoặc không có GodBadge, thực hiện hành động khác
+        // Ưu tiên đến GodBadge nếu chưa transformed
+        const closestGodBadge = this.findClosestCell(playerPosition, MapCell.GodBadge);
+        if (closestGodBadge !== null && this.currentTarget !== closestGodBadge) {
+            const pathToBadge = this.findPath(playerPosition, closestGodBadge);
+    
+            if (pathToBadge && this.isPathValid(pathToBadge, playerPosition)) {
+                console.log(`Moving to GodBadge at position: ${closestGodBadge}`);
+                this.currentTarget = closestGodBadge;
+                this.moveToAndWait(pathToBadge, 3000); // Đứng tại GodBadge trong 3 giây
+                return;
+            } else {
+                console.warn("No valid path to GodBadge or path is invalid.");
+            }
+        }
+    
+        // Nếu không có GodBadge hoặc đã biến hình, tìm tường gạch gần nhất
         const closestBrickWall = this.findClosestCell(playerPosition, MapCell.BrickWall);
         if (closestBrickWall !== null && this.currentTarget !== closestBrickWall) {
             const pathToBrick = this.findPath(playerPosition, closestBrickWall);
-            if (pathToBrick) {
-                console.log(`Move to destroy BrickWall at position: ${closestBrickWall}`);
-                this.currentTarget = closestBrickWall; // Lưu mục tiêu hiện tại
-                return this.moveToAndBreakProperly(pathToBrick, closestBrickWall);
+    
+            if (pathToBrick && pathToBrick.length > 0) {
+                console.log(`Moving to destroy BrickWall at position: ${closestBrickWall}`);
+                this.currentTarget = closestBrickWall;
+                this.moveToAndBreakProperly(pathToBrick, closestBrickWall);
+                return;
+            } else {
+                console.warn("Unable to find a valid path to BrickWall.");
             }
         }
     
-        console.log("No action possible.");
+        console.log("No action possible. Resetting state.");
         this.currentTarget = null;
-        return null;
     }
+    
     
     moveToAndWait(path, waitTime) {
         if (path && path.length > 0) {
@@ -154,10 +293,11 @@ class GameMap {
             this.moveTo(path);
     
             setTimeout(() => {
-                console.log(`Arrived at destination, waiting for ${waitTime / 1000} seconds.`);
+                console.log(`Arrived at GodBadge, starting wait for ${waitTime / 1000} seconds.`);
                 this.isMoving = false;
                 this.isWaitingAtGodBadge = true;
     
+                // Chờ 3 giây tại GodBadge
                 setTimeout(() => {
                     console.log("Finished waiting at GodBadge.");
                     this.isWaitingAtGodBadge = false;
@@ -165,38 +305,102 @@ class GameMap {
                 }, waitTime);
             }, path.length * 500); // Thời gian di chuyển phụ thuộc vào độ dài path
         } else {
+            this.isMoving = false;
             console.log("No valid path to move and wait.");
         }
     }
     
+    
 
     moveToAndBreakProperly(path, targetPos) {
         if (path.length > 0) {
+            console.log(`Moving towards BrickWall, path: ${path}`);
             this.isMoving = true;
-            console.log(`Moving towards BrickWall, direction: ${path}`);
-            this.moveTo(path);
+            this.moveTo(path); // Di chuyển đến gần tường gạch
     
+            // Sau khi di chuyển xong
             setTimeout(() => {
                 this.isMoving = false;
-                if (path.length === 0) {
-                    console.log(`Reached BrickWall at position: ${targetPos}`);
-                    if (this.shouldBreak(this.player.position)) {
-                        console.log("Breaking BrickWall!");
-                        this.isBreaking = true;
-                        this.emitDriver('drive player', { direction: "b" });
+    
+                const playerPosition = this.player.position;
+                const directionToBrick = this.getDirectionToNeighbor(playerPosition, targetPos);
+    
+                if (directionToBrick) {
+                    console.log(`Facing BrickWall, direction: ${directionToBrick}`);
+                    this.emitDriver('drive player', { direction: directionToBrick }); // Quay mặt vào tường
+    
+                    setTimeout(() => {
+                        console.log(`Breaking BrickWall at position: ${targetPos}`);
+                        this.emitDriver('drive player', { direction: "b" }); // Phá tường
+    
+                        // Cập nhật bản đồ sau khi phá tường
                         this.updateMapAfterBreaking(targetPos);
     
+                        // Kiểm tra và phá tiếp các tường xung quanh nếu có
                         setTimeout(() => {
                             this.isBreaking = false;
-                            this.currentTarget = null; // Đặt lại mục tiêu hiện tại sau khi hoàn tất
-                            this.decideNextAction(); // Thực hiện hành động tiếp theo
-                        }, 500);
-                    }
+                            this.breakSurroundingBrickWalls(); // Kiểm tra và phá tiếp các tường xung quanh
+                        }, 200);
+                    }, 300); // Đợi sau khi quay mặt để phá tường
                 } else {
-                    this.moveToAndBreakProperly(path, targetPos);
+                    console.warn(`Unable to face the BrickWall at position: ${targetPos}`);
                 }
-            }, 500);
+            }, path.length * 500); // Thời gian chờ phụ thuộc vào độ dài đường đi
+        } else {
+            console.warn(`Path to BrickWall is empty, cannot proceed.`);
         }
+    }
+    
+    breakSurroundingBrickWalls() {
+        const playerPosition = this.player.position;
+    
+        // Lấy danh sách các ô lân cận
+        const neighbors = this.getNeighborNodes(playerPosition);
+    
+        for (let neighbor of neighbors) {
+            const { pos, dir } = neighbor;
+            const cellValue = this.flatMap[pos];
+    
+            // Kiểm tra nếu ô lân cận là tường gạch
+            if (cellValue === MapCell.BrickWall) {
+                console.log(`Found another BrickWall at position: ${pos}, direction: ${dir}`);
+                
+                // Quay mặt vào tường gạch
+                this.emitDriver('drive player', { direction: dir });
+    
+                setTimeout(() => {
+                    console.log(`Breaking BrickWall at position: ${pos}`);
+                    this.emitDriver('drive player', { direction: "b" }); // Phá tường
+    
+                    // Cập nhật bản đồ sau khi phá tường
+                    this.updateMapAfterBreaking(pos);
+    
+                    // Tiếp tục kiểm tra và phá các tường khác
+                    setTimeout(() => {
+                        this.breakSurroundingBrickWalls();
+                    }, 500);
+                }, 500);
+    
+                return; // Dừng vòng lặp để xử lý từng tường một
+            }
+        }
+    
+        console.log("No more BrickWalls surrounding the player.");
+        this.decideNextAction(); // Tiếp tục hành động tiếp theo
+    }
+
+    
+
+    getDirectionToNeighbor(currentPos, targetPos) {
+        const { x: currX, y: currY } = this.to2dPos(currentPos);
+        const { x: targetX, y: targetY } = this.to2dPos(targetPos);
+    
+        if (currX === targetX && currY - 1 === targetY) return MoveDirection.UP;    // Target ở trên
+        if (currX === targetX && currY + 1 === targetY) return MoveDirection.DOWN;  // Target ở dưới
+        if (currX - 1 === targetX && currY === targetY) return MoveDirection.LEFT;  // Target ở trái
+        if (currX + 1 === targetX && currY === targetY) return MoveDirection.RIGHT; // Target ở phải
+    
+        return null; // Không phải ô lân cận
     }
     
 
@@ -332,58 +536,49 @@ class GameMap {
 
     // Hàm tìm vị trí đặt bomb
     findOptimalBombPosition(playerPosition) {
-        const potentialPositions = new Map(); // Lưu trữ vị trí và số hộp bị phá hủy
+        // Tìm vị trí hộp (Balk) gần nhất
+        const queue = [{ position: playerPosition, path: [] }];
+        const visited = new Set();
+        let optimalPosition = null;
     
-        // Duyệt qua các ô có Balk để tìm các vị trí gần đó
-        this.flatMap.forEach((cell, index) => {
-            if (cell === MapCell.Balk) {
-                const neighbors = this.getNeighborNodes(index); // Các ô lân cận hộp
-                neighbors.forEach(({ pos }) => {
-                    if (this.flatMap[pos] === MapCell.Road) {
-                        if (!potentialPositions.has(pos)) {
-                            const boxesDestroyed = this.calculateBombImpact(pos);
-                            potentialPositions.set(pos, boxesDestroyed);
+        while (queue.length > 0) {
+            const { position, path } = queue.shift();
+            if (visited.has(position)) continue;
+            visited.add(position);
+    
+            // Kiểm tra các ô lân cận
+            const neighbors = this.getNeighborNodes(position);
+            for (const { pos } of neighbors) {
+                if (visited.has(pos)) continue;
+    
+                if (this.flatMap[pos] === MapCell.Balk) {
+                    // Tìm ô đường trống gần hộp để đặt bomb
+                    const safeNeighbors = this.getNeighborNodes(pos).filter(
+                        ({ pos: neighborPos }) => this.flatMap[neighborPos] === MapCell.Road
+                    );
+    
+                    for (const { pos: bombPosition } of safeNeighbors) {
+                        if (this.isSafeToPlaceBomb(bombPosition)) {
+                            optimalPosition = bombPosition;
+                            console.log(`Found optimal bomb position: ${optimalPosition}`);
+                            return optimalPosition;
                         }
                     }
-                });
-            }
-        });
-    
-        // Chọn vị trí tốt nhất (phá được nhiều Balk nhất và không nguy hiểm)
-        let bestPosition = null;
-        let maxBoxes = 0;
-    
-        for (const [pos, boxesDestroyed] of potentialPositions) {
-            if (boxesDestroyed > maxBoxes) {
-                // Kiểm tra xem vị trí này có an toàn không
-                const bombImpactArea = this.getBombImpactArea(pos);
-                if (!bombImpactArea.has(playerPosition)) {
-                    bestPosition = pos;
-                    maxBoxes = boxesDestroyed;
+                } else if (this.flatMap[pos] === MapCell.Road) {
+                    queue.push({ position: pos, path: [...path, pos] });
                 }
             }
         }
     
-        return bestPosition;
-    }
-    
-    
-    
-    
-    // Hàm tìm vị trí an toàn
-    findSafePosition(bombPosition) {
-        const bombImpactArea = this.getBombImpactArea(bombPosition);
-    
-        // Tìm vị trí ngoài vùng ảnh hưởng
-        for (let i = 0; i < this.flatMap.length; i++) {
-            if (!bombImpactArea.has(i) && this.flatMap[i] === MapCell.Road) {
-                return i; // Trả về vị trí an toàn đầu tiên tìm thấy
-            }
-        }
-    
-        return null; // Không tìm thấy vị trí an toàn
+        console.warn("No optimal bomb position found.");
+        return null;
     }
 
+
+    isSafeToPlaceBomb(bombPosition) {
+        return true; // Không có đường thoát an toàn
+    }
+    
 
     // Hàm tính số lượng hộp bị phá hủy bởi bomb
     calculateBombImpact(position) {
@@ -418,30 +613,53 @@ class GameMap {
 
     // Hàm đặt bomb và di chuyển đến vị trí an toàn
     placeBombAndRetreat(bombPosition) {
-        if (this.currentTarget === bombPosition) {
-            console.log("Already placed bomb at this position. Skipping...");
-            return;
-        }
-    
         console.log(`Placing bomb at position: ${bombPosition}`);
-        this.currentTarget = bombPosition;
-        this.emitDriver('drive player', { direction: "b" }); // Lệnh đặt bomb
+        this.emitDriver('drive player', { direction: "b" });
+    }
     
-        const safePosition = this.findSafePosition(bombPosition);
-        if (safePosition !== null) {
-            const pathToSafe = this.findPath(this.player.position, safePosition);
-            console.log(`Safe position found at ${safePosition}, moving with path: ${pathToSafe}`);
-            if (pathToSafe && pathToSafe.length > 0) {
-                this.moveTo(pathToSafe);
-            }
+    forceMoveTo(path) {
+        if (path && path.length > 0) {
+            // const pathString = path.join("");
+            console.log(`Forcing move to path: ${path}`);
+            this.socket.emit('drive player', { direction: path }); // Bỏ qua cooldown
+            this.isMoving = true;
+            setTimeout(() => {
+                this.isMoving = false;
+                console.log("Arrived at safe position.");
+                this.currentTarget = null;
+            }, path.length * 1000); // Ước lượng thời gian di chuyển
         } else {
-            console.log("No safe position found. Attempting manual escape.");
-            this.moveManuallyAwayFromBomb(bombPosition);
+            console.warn("No valid path for force move.");
         }
     }
     
     
-
+    forceMoveManuallyAwayFromBomb(bombPosition) {
+        const directions = [
+            { dx: 1, dy: 0 }, // Right
+            { dx: -1, dy: 0 }, // Left
+            { dx: 0, dy: 1 }, // Down
+            { dx: 0, dy: -1 } // Up
+        ];
+    
+        const { x: playerX, y: playerY } = this.to2dPos(this.player.position);
+    
+        for (const { dx, dy } of directions) {
+            const newX = playerX + dx;
+            const newY = playerY + dy;
+            const newPos = this.to1dPos(newX, newY);
+    
+            if (this.isValidPosition(newPos)) {
+                console.log(`Forcing manual move to position: ${newPos}`);
+                this.socket.emit('drive player', { direction: String(newPos) });
+                return;
+            }
+        }
+    
+        console.warn("No valid manual escape moves available.");
+    }
+    
+    
     // Hàm xác định vùng ảnh hưởng của bomb
     getBombImpactArea(bombPosition) {
         const impactArea = new Set();
@@ -457,68 +675,16 @@ class GameMap {
                 if (dir === MoveDirection.LEFT) currentPos = this.to1dPos(x - 1, y);
                 if (dir === MoveDirection.RIGHT) currentPos = this.to1dPos(x + 1, y);
     
-                // Dừng nếu vượt ngoài bản đồ
                 if (currentPos < 0 || currentPos >= this.flatMap.length) break;
     
                 const cellValue = this.flatMap[currentPos];
                 impactArea.add(currentPos);
     
-                // Dừng nếu gặp vật cản
                 if (cellValue !== MapCell.Road && cellValue !== MapCell.Balk) break;
             }
         });
     
         return impactArea;
-    }
-    
-    // Hàm này sẽ tìm vị trí an toàn (ngoài tầm ảnh hưởng của bomb) và di chuyển đến đó:    
-    moveToSafePosition(playerPosition) {
-        console.log("Finding safe position...");
-    
-        // Lấy danh sách các ô trong phạm vi ảnh hưởng của bomb
-        const dangerZones = new Set();
-        this.bombs.forEach(bomb => {
-            const bombPos = this.to1dPos(bomb.col, bomb.row);
-            dangerZones.add(bombPos);
-    
-            // Thêm các ô bị ảnh hưởng bởi bomb (theo power)
-            for (let i = 1; i <= bomb.power; i++) {
-                // Trên
-                const up = this.to1dPos(bomb.col, bomb.row - i);
-                if (this.isValidPosition(up)) dangerZones.add(up);
-    
-                // Dưới
-                const down = this.to1dPos(bomb.col, bomb.row + i);
-                if (this.isValidPosition(down)) dangerZones.add(down);
-    
-                // Trái
-                const left = this.to1dPos(bomb.col - i, bomb.row);
-                if (this.isValidPosition(left)) dangerZones.add(left);
-    
-                // Phải
-                const right = this.to1dPos(bomb.col + i, bomb.row);
-                if (this.isValidPosition(right)) dangerZones.add(right);
-            }
-        });
-    
-        // Tìm vị trí an toàn gần nhất
-        const safePositions = this.flatMap
-            .map((cell, index) => ({ cell, index }))
-            .filter(({ cell, index }) => cell === MapCell.Road && !dangerZones.has(index)) // Sửa lỗi tại đây
-            .map(({ index }) => ({
-                index,
-                distance: this.getManhattanDistance(playerPosition, index)
-            }))
-            .sort((a, b) => a.distance - b.distance);
-    
-        if (safePositions.length > 0) {
-            const safePosition = safePositions[0].index;
-            console.log(`Safe position found at ${safePosition}`);
-            const pathToSafe = this.findPath(playerPosition, safePosition);
-            return this.moveTo(pathToSafe); // Di chuyển đến vị trí an toàn
-        } else {
-            console.log("No safe position available.");
-        }
     }
     
     getManhattanDistance(pos1, pos2) {
@@ -528,30 +694,63 @@ class GameMap {
         return Math.abs(pos1_2d.x - pos2_2d.x) + Math.abs(pos1_2d.y - pos2_2d.y);
     }
     
-    // Hàm này sẽ tìm tất cả các vị trí trên bản đồ ngoài tầm ảnh hưởng của bomb:
     findSafePosition(bombPosition) {
-        const bombImpactArea = this.getBombImpactArea(bombPosition);
+        const maxSteps = 9; // Số bước tối đa
+        const directions = [
+            { dx: 1, dy: 0, code: "4" }, // Đi xuống
+            { dx: -1, dy: 0, code: "3" }, // Đi lên
+            { dx: 0, dy: -1, code: "1" }, // Sang trái
+            { dx: 0, dy: 1, code: "2" }, // Sang phải
+        ];
     
-        const safePositions = this.flatMap
-            .map((cell, index) => ({ cell, index }))
-            .filter(({ cell, index }) => cell === MapCell.Road && !bombImpactArea.has(index))
-            .map(({ index }) => ({
-                index,
-                distance: this.getManhattanDistance(this.player.position, index)
-            }))
-            .sort((a, b) => a.distance - b.distance);
+        const { x: fromX, y: fromY } = this.getPositionCoordinates(this.player.position);
     
-        // Nếu không có vị trí an toàn, chọn ô bất kỳ không thuộc vùng ảnh hưởng
-        if (safePositions.length === 0) {
-            for (let i = 0; i < this.flatMap.length; i++) {
-                if (this.flatMap[i] === MapCell.Road && !bombImpactArea.has(i)) {
-                    return i;
+        for (const direction of directions) {
+            let walk = "";
+            for (let step = 1; step <= maxSteps; step++) {
+                const newX = fromX + step * direction.dx;
+                const newY = fromY + step * direction.dy;
+                const newIndex = this.getIndexFromCoordinates(newX, newY);
+    
+                if (this.checkSafeMove(newIndex)) {
+                    walk += direction.code;
+    
+                    // Kiểm tra nếu ô tiếp theo hoàn toàn an toàn
+                    const nextX = newX + direction.dx;
+                    const nextY = newY + direction.dy;
+                    const nextIndex = this.getIndexFromCoordinates(nextX, nextY);
+    
+                    if (this.checkSafeMove(nextIndex)) {
+                        return { index: nextIndex, path: walk + direction.code }; // Di chuyển thêm 1 bước nữa
+                    }
+                } else {
+                    break; // Nếu không đi tiếp được, thoát khỏi vòng lặp
                 }
             }
-            return null;
         }
     
-        return safePositions[0].index;
+        console.log("No valid positions available.");
+        return null; // Không tìm thấy vị trí an toàn
+    }
+    
+    
+    // Hàm kiểm tra vị trí có an toàn không
+    checkSafeMove(index) {
+        return (
+            index >= 0 &&
+            index < this.flatMap.length &&
+            (this.flatMap[index] === MapCell.Road || this.flatMap[index] === MapCell.BombZone)
+        );
+    }
+    
+    // Chuyển từ tọa độ x, y sang chỉ số trong flatMap
+    getIndexFromCoordinates(x, y) {
+        return x * this.mapWidth + y;
+    }
+    
+    // Chuyển từ chỉ số trong flatMap sang tọa độ x, y
+    getPositionCoordinates(index) {
+        return { x: Math.floor(index / this.mapWidth), y: index % this.mapWidth };
     }
     
     
@@ -655,7 +854,6 @@ class GameMap {
             { dx: 0, dy: -1 } // Up
         ];
     
-        const { x: bombX, y: bombY } = this.to2dPos(bombPosition);
         const { x: playerX, y: playerY } = this.to2dPos(this.player.position);
     
         for (const { dx, dy } of directions) {
@@ -665,15 +863,37 @@ class GameMap {
     
             if (this.isValidPosition(newPos)) {
                 console.log(`Manually moving to position: ${newPos}`);
-                return this.moveTo([newPos]);
+                this.moveTo([newPos]);
+                return;
             }
         }
     
-        console.log("No valid manual escape moves available.");
+        console.warn("No valid manual escape moves available.");
     }
     
     
+    handleAfterBombExploded() {
+        console.log("Bomb exploded! Updating map and deciding next action.");
     
+        // Cập nhật lại bản đồ (giả sử bạn đã có logic cập nhật map sau bomb nổ)
+        this.updateMapAfterExplosion();
+    
+        // Gọi decideNextAction để tiếp tục logic
+        this.decideNextAction(this.player.playerInfo.hasTransform);
+    }
+
+
+    printMap2D() {
+        console.log("Current Map:");
+        for (let y = 0; y < this.mapHeight; y++) {
+            let row = '';
+            for (let x = 0; x < this.mapWidth; x++) {
+                const pos = this.to1dPos(x, y); // Chuyển đổi vị trí 2D sang 1D
+                row += this.flatMap[pos] + ' '; // Lấy giá trị từ flatMap và thêm khoảng trắng
+            }
+            console.log(row.trim()); // In dòng đã tạo, loại bỏ khoảng trắng thừa
+        }
+    }
 }
 
 export { MapCell, MoveDirection, TreeNode, GamePlayer, GameMap };
