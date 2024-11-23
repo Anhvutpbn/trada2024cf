@@ -86,6 +86,7 @@ class GameMap {
         // this.printMap2D();
     
         if (this.bombs.length == 0) {
+            console.log("this.bombs.length == 0 this.bombs.length == 0")
             this.hasPlacedBomb = false;
         } else {
             this.hasPlacedBomb = true;
@@ -144,13 +145,9 @@ class GameMap {
                 console.log(`Escaping to safe position: ${safePosition.path}`);
                 this.forceMoveTo(safePosition.path); // Di chuyển ngay lập tức
                 return;
-            } else {
-                console.warn("No valid path to safe position. Attempting manual escape.");
-                this.forceMoveManuallyAwayFromBomb(playerPosition);
             }
         } else {
             console.warn("No safe position found. Attempting manual escape.");
-            this.forceMoveManuallyAwayFromBomb(playerPosition);
         }
     }
 
@@ -631,7 +628,7 @@ class GameMap {
     
     // findSafePosition
     findSafePosition(bombPosition) {
-        const maxSteps = 9; // Số bước tối đa
+        const maxSteps = 15; // Số bước tối đa
         const directions = [
             { dx: 1, dy: 0, code: "4" }, // Đi xuống
             { dx: -1, dy: 0, code: "3" }, // Đi lên
@@ -648,19 +645,36 @@ class GameMap {
                 const newY = fromY + step * direction.dy;
                 const newIndex = this.getIndexFromCoordinates(newX, newY);
     
+                // Kiểm tra vị trí hiện tại
                 if (this.checkSafeMove(newIndex)) {
                     walk += direction.code;
     
-                    // Kiểm tra nếu ô tiếp theo hoàn toàn an toàn
-                    const nextX = newX + direction.dx;
-                    const nextY = newY + direction.dy;
-                    const nextIndex = this.getIndexFromCoordinates(nextX, nextY);
+                    // Kiểm tra các ô lân cận:
+                    if (direction.dx !== 0) {
+                        // Đang đi theo chiều dọc (lên hoặc xuống)
+                        const leftIndex = this.getIndexFromCoordinates(newX, newY - 1); // Trái
+                        const rightIndex = this.getIndexFromCoordinates(newX, newY + 1); // Phải
     
-                    if (this.checkSafeMove(nextIndex)) {
-                        return { index: nextIndex, path: walk + direction.code }; // Di chuyển thêm 1 bước nữa
+                        if (this.checkSafeMove(leftIndex)) {
+                            return { index: leftIndex, path: walk + "1" }; // Thêm bước sang trái
+                        }
+                        if (this.checkSafeMove(rightIndex)) {
+                            return { index: rightIndex, path: walk + "2" }; // Thêm bước sang phải
+                        }
+                    } else {
+                        // Đang đi theo chiều ngang (trái hoặc phải)
+                        const upIndex = this.getIndexFromCoordinates(newX - 1, newY); // Lên
+                        const downIndex = this.getIndexFromCoordinates(newX + 1, newY); // Xuống
+    
+                        if (this.checkSafeMove(upIndex)) {
+                            return { index: upIndex, path: walk + "3" }; // Thêm bước lên
+                        }
+                        if (this.checkSafeMove(downIndex)) {
+                            return { index: downIndex, path: walk + "4" }; // Thêm bước xuống
+                        }
                     }
                 } else {
-                    break; // Nếu không đi tiếp được, thoát khỏi vòng lặp
+                    break; // Nếu không thể đi tiếp, thoát vòng lặp cho hướng này
                 }
             }
         }
@@ -668,6 +682,7 @@ class GameMap {
         console.log("No valid positions available.");
         return null; // Không tìm thấy vị trí an toàn
     }
+    
     
     
     getFlatPosition(row, col) {
@@ -732,10 +747,11 @@ class GameMap {
             this.awayFromBom = true;
             // const pathString = path.join("");
             console.log(`Forcing move to path: ${path}`);
-            this.socket.emit('drive player', { direction: path });
+            
             setTimeout(() => {
                 this.awayFromBom = false
-            }, path.length * 500); // Ước lượng thời gian di chuyển
+                this.socket.emit('drive player', { direction: path });
+            }, path.length * 200); // Ước lượng thời gian di chuyển
             
         } else {
             console.warn("No valid path for force move.");
@@ -773,43 +789,39 @@ class GameMap {
     getBombImpactArea(bombPosition) {
         const impactArea = new Set();
         impactArea.add(bombPosition); // Thêm tâm bom vào vùng ảnh hưởng
-    
         const directions = [MoveDirection.UP, MoveDirection.DOWN, MoveDirection.LEFT, MoveDirection.RIGHT];
+        // Duyệt qua từng hướng (Lên, Xuống, Trái, Phải)
         directions.forEach(dir => {
             let currentPos = bombPosition;
-    
             // Tính toán vùng ảnh hưởng trong phạm vi sức mạnh của người chơi
-            for (let i = 0; i <= this.player.playerInfo.power + 1; i++) {
+            for (let i = 1; i <= this.player.playerInfo.power; i++) {
+                const { x, y } = this.to2dPos(currentPos);
+                // Di chuyển theo hướng tương ứng
+                let newX = x, newY = y;
+                if (dir === MoveDirection.UP) newY -= 1;
+                if (dir === MoveDirection.DOWN) newY += 1;
+                if (dir === MoveDirection.LEFT) newX -= 1;
+                if (dir === MoveDirection.RIGHT) newX += 1;
+                // Chuyển từ tọa độ 2D sang tọa độ 1D
+                const newIndex = this.to1dPos(newX, newY);
                 // Kiểm tra nếu vị trí nằm ngoài bản đồ
-                if (currentPos < 0 || currentPos >= this.flatMap.length) break;
-                    
-                const cellValue = this.flatMap[currentPos];
-
-                // Thêm vị trí vào vùng ảnh hưởng
-                impactArea.add(currentPos);
-
-                // Nếu gặp các khối không thể xuyên qua, dừng lại
-                if (
-                    cellValue === MapCell.Border ||     // Ranh giới
-                    cellValue === MapCell.Balk ||       // Chướng ngại vật
-                    cellValue === MapCell.BrickWall ||  // Tường gạch
-                    cellValue === MapCell.Jail          // Nhà tù
-                ) {
+                if (newIndex < 0 || newIndex >= this.flatMap.length) break;
+                const cellValue = this.flatMap[newIndex];
+                // Nếu gặp khối không thể xuyên qua, dừng lại và không thêm khối đó vào vùng nổ
+                if ( cellValue != MapCell.Road) {
                     break;
                 }
-
-                const { x, y } = this.to2dPos(currentPos);
+                // Nếu ô hợp lệ, thêm vào vùng nổ
+                impactArea.add(newIndex);
     
-                // Di chuyển theo hướng tương ứng
-                if (dir === MoveDirection.UP) currentPos = this.to1dPos(x, y - 1);
-                if (dir === MoveDirection.DOWN) currentPos = this.to1dPos(x, y + 1);
-                if (dir === MoveDirection.LEFT) currentPos = this.to1dPos(x - 1, y);
-                if (dir === MoveDirection.RIGHT) currentPos = this.to1dPos(x + 1, y);
+                // Di chuyển vị trí hiện tại
+                currentPos = newIndex;
             }
         });
     
         return impactArea;
     }
+    
     
     
     getManhattanDistance(pos1, pos2) {

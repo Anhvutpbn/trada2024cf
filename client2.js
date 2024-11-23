@@ -6,7 +6,7 @@ const apiServer = 'http://192.168.1.229'; // Đổi thành URL server của bạ
 const socket = io(apiServer, { reconnect: true, transports: ['websocket'] });
 
 const playerId = 'player2-xxx'; // ID người chơi
-const optionJoin = { game_id: 'eadef47d-c7d8-4b4a-bed2-2579d721bfe3', player_id: playerId };
+const optionJoin = { game_id: '530fe3fb-4cc9-4272-8225-95f28b8e99c7', player_id: playerId };
 
 // Khởi tạo giao diện để nhập từ command line
 const rl = readline.createInterface({
