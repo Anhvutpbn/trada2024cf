@@ -1,5 +1,5 @@
 import {MapCell, MoveDirection, TreeNode, GamePlayer, GameMap } from './machineAi.js';
-const gameId = '7734b5c7-ab80-400c-8751-3264d685ac54';
+const gameId = '37c6a9b9-63dc-43dd-b94c-d2cf543db8c5';
 let MAP = {};
 let BOMB = [];
 let SPOILS = [];
@@ -9,7 +9,7 @@ let players;
 
 // client.js
 import { connect } from 'socket.io-client';
-const apiServer = 'http://192.168.1.15';
+const apiServer = 'http://34.142.149.116:8824';
 const socket = connect(apiServer, {reconnect: true, transports: ['websocket']});
 const playerId = 'player1-xxx';
 const optionJoin = {game_id: gameId, player_id: "player1-xxx"}
@@ -65,13 +65,7 @@ const jsonData = {
         "WDC"
     ]
 };
-const START_GAME = "start-game"
-const UPDATE_GAME = "update-data"
-const MOVING_BANNED = "player:moving-banned"
-const START_MOVING = "player:start-moving"
-const STOP_MOVING = "player:stop-moving"
-const BE_ISOLATED = "player:be-isolated"
-const BTPG = "player:back-to-playground"
+
 
 // Vu khi
 // tobecon tình yêu
@@ -80,7 +74,7 @@ const gameMap = new GameMap(socket, playerId);
 //API-2
 socket.on('ticktack player', (res) => {
 //    console.log(res)
-    gameMap.parseTicktack(res.id, res);
+    gameMap.parseTicktack(res);
    /**
     * Từ res sẽ lấy ra các thông số của game. hiện tại cần 1 số thông số sau
     * - Lấy vị trí đứng của player ( x-y)

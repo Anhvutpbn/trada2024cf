@@ -2,11 +2,11 @@ import readline from 'readline';
 import { io } from 'socket.io-client';
 import {MapCell, MoveDirection, TreeNode, GamePlayer, GameMap } from './machineAi.js';
 // Kết nối tới server
-const apiServer = 'http://192.168.1.15'; // Đổi thành URL server của bạn
+const apiServer = 'http://34.142.149.116:8824'; // Đổi thành URL server của bạn
 const socket = io(apiServer, { reconnect: true, transports: ['websocket'] });
 
 const playerId = 'player2-xxx'; // ID người chơi
-const optionJoin = { game_id: '7734b5c7-ab80-400c-8751-3264d685ac54', player_id: playerId };
+const optionJoin = { game_id: '37c6a9b9-63dc-43dd-b94c-d2cf543db8c5', player_id: playerId };
 
 // Khởi tạo giao diện để nhập từ command line
 const rl = readline.createInterface({
@@ -33,7 +33,7 @@ socket.on('error', (err) => {
 const gameMap = new GameMap(socket, playerId);
 // Sự kiện nhận ticktack từ server
 socket.on('ticktack player', (res) => {
-    gameMap.parseTicktack(res.id, res);
+    gameMap.parseTicktack(res);
     // console.log(res.map_info.players);
     // // Đọc chuỗi lệnh từ người dùng
     // rl.question('Enter command sequence (e.g., 111222b or s): ', (input) => {
