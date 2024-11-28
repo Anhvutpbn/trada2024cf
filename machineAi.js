@@ -91,28 +91,33 @@ class GameMap {
     }
     async parseTicktack(res) {
         const currentPlayer = res.map_info.players.find(p => this.playerId.includes(p.id));
+        // if(this.playerId.includes(res.player_id) && res.tag == STOP_MOVING && !this.isWaitingAtGodBadge) {
+        //     this.reset()
+        //     return
+        // }
+        // if(
+        //     this.playerId.includes(res.player_id) && 
+        //     ( 
+        //         res.tag == BOMB_EXPLODED || 
+        //         res.tag == MOVING_BANNED ||
+        //         res.tag == BTPG ||
+        //         res.tag == STUN
+        //     )
+        // ) {
+        //     this.reset()
+        //     return
+        // }
 
-        if(
-            this.playerId.includes(res.player_id) && 
-            ( 
-                res.tag == BOMB_EXPLODED || 
-                res.tag == MOVING_BANNED ||
-                res.tag == BTPG ||
-                res.tag == STUN
-            )
-        ) {
-            this.reset()
-        }
-
-        if(
-            this.playerId.includes(res.player_id) && 
-            ( 
-                res.tag == STOP_MOVING|| 
-                res.tag == MOVING_BANNED
-            )
-        ) {
-            this.awayFromBom = false
-        }
+        // if(
+        //     this.playerId.includes(res.player_id) && 
+        //     ( 
+        //         res.tag == STOP_MOVING|| 
+        //         res.tag == MOVING_BANNED
+        //     )
+        // ) {
+        //     this.reset()
+        //     return
+        // }
 
         this.map = res.map_info.map;
 
@@ -199,32 +204,31 @@ class GameMap {
         
         if(this.flatMap[this.player.position] == MapCell.BombZone && !this.awayFromBom ) {
             this.awayFromBom = true
+            console.log("-------------------------RUN---------------------------------")
             await this.escapeFromDangerZone()
             return
         }
-        if (this.bombs.length == 0) {
-            // const spoilsPath = this.findNearestSpoils(this.player.position, 5); // Tìm Spoils trong bán kính 5 ô
-            //     if (spoilsPath) {
-            //         console.log(`Found spoils at path: ${spoilsPath.path}`);
-            //         this.socket.emit('drive player', { direction: spoilsPath.path });
-            //     } else {
-            //         console.log("No spoils found nearby.");
-            //     }
-            // this.hasPlacedBomb = false;
-        } else {
-            // this.hasPlacedBomb = true;
-            // if(this.flatMap[this.player.position] == MapCell.BombZone && !this.awayFromBom) {
-            //     this.escapeFromDangerZone()
-            // } else {
-            //     // Nhat Spoils
-                
-            // }
+        if (hasTransform === undefined) {
+            console.warn("Transform state is undefined. Skipping action.");
             return;
         }
+
+        // Picking Item TODO
+        // if (this.bombs.length == 0  && hasTransform) {
+        //     const spoilsPath = this.getItem(); // Tìm Spoils trong bán kính 5 ô
+        //     console.log(`Found spoils at path: ${spoilsPath}`);
+        //         if (spoilsPath) {
+        //             console.log(`Found spoils at path: ${spoilsPath}`);
+        //             this.socket.emit('drive player', { direction: spoilsPath });
+        //         } else {
+        //             return this.decideNextAction(hasTransform);
+        //         }
+        //     return;
+        // }
     
         // Nếu không trong vùng nguy hiểm, tiếp tục xử lý logic thông thường
         // console.log("Nếu không trong vùng nguy hiểm, tiếp tục xử lý logic thông thường", this.hasPlacedBomb)     
-        this.decideNextAction(hasTransform);
+        return this.decideNextAction(hasTransform);
     }
     
     replaceBombImpactWithSpecialZone(bombPosition) {
@@ -238,17 +242,26 @@ class GameMap {
 
 
     replaceSpoilsToMapValue() {
+        // Kiểm tra dữ liệu spoils
+        if (!this.spoils || !Array.isArray(this.spoils)) {
+            console.error("Spoils data is invalid or undefined:", this.spoils);
+            return;
+        }
         // Duyệt qua tất cả các item trong this.spoils
         this.spoils.forEach(spoil => {
             const { row, col } = spoil;
+    
             // Tính chỉ số phẳng (1D) từ tọa độ 2D
-            const index = this.to1dPos(row, col);
+            const index = this.to1dPos(col, row);
+    
+    
             // Kiểm tra chỉ số hợp lệ trước khi thay thế
             if (index >= 0 && index < this.flatMap.length) {
-            this.flatMap[index] = MapCell.Spoils; // Gán giá trị 99
+                this.flatMap[index] = MapCell.Spoils; // Gán giá trị 99
             }
         });
-    }   
+    }
+       
 
     findNearestSpoils(startPosition, radius) {
         const directions = [
@@ -344,7 +357,7 @@ class GameMap {
     
         if (validNeighbors.length > 0) {
             const randomNeighbor = validNeighbors[Math.floor(Math.random() * validNeighbors.length)];
-            console.log(`Forced move to direction: ${randomNeighbor.dir}`);
+            // console.log(`Forced move to direction: ${randomNeighbor.dir}`);
             this.emitDriver('drive player', { direction: randomNeighbor.dir });
         }
     }
@@ -352,6 +365,7 @@ class GameMap {
 
 
     to1dPos(x, y) {
+
         return y * this.mapWidth + x;
     }
 
@@ -419,7 +433,7 @@ class GameMap {
             const pathToBadge = this.findPath(playerPosition, closestGodBadge);
     
             if (pathToBadge && this.isPathValid(pathToBadge, playerPosition)) {
-                console.log(`Moving to GodBadge at position: ${closestGodBadge}`);
+                // console.log(`Moving to GodBadge at position: ${closestGodBadge}`);
                 this.currentTarget = closestGodBadge;
                 this.moveToAndWait(pathToBadge, 3000); // Đứng tại GodBadge trong 3 giây
                 return;
@@ -431,7 +445,7 @@ class GameMap {
             const pathToBrick = this.findPath(playerPosition, closestBrickWall);
     
             if (pathToBrick && pathToBrick.length > 0) {
-                console.log(`Moving to destroy BrickWall at position: ${closestBrickWall}`);
+                // console.log(`Moving to destroy BrickWall at position: ${closestBrickWall}`);
                 this.currentTarget = closestBrickWall;
                 this.moveToAndBreakProperly(pathToBrick, closestBrickWall);
                 return;
@@ -546,14 +560,12 @@ class GameMap {
     }
     
 
-    emitDriver(event, data) {
+    async emitDriver(event, data) {
         if (!this.emitStatus) {
             this.emitStatus = true;
-            this.socket.emit(event, data);
-
-            setTimeout(() => {
-                this.emitStatus = false;
-            }, data.length * 100);
+            await this.socket.emit(event, data);
+            this.emitStatus = false;
+            
         } else {
             console.log("Emit blocked due to cooldown.");
         }
@@ -614,7 +626,7 @@ class GameMap {
             // Kiểm tra nếu ô không hợp lệ
             const cellValue = this.flatMap[currentPos];
             if (cellValue !== MapCell.Spoils && cellValue !== MapCell.Road && cellValue !== MapCell.GodBadge) {
-                console.log(`Invalid cell found at position ${currentPos}: ${cellValue}`);
+                // console.log(`Invalid cell found at position ${currentPos}: ${cellValue}`);
                 return false;
             }
         }
@@ -720,7 +732,7 @@ class GameMap {
 
             // Nếu tìm thấy Balk (ô giá trị 2), trả về đường đi
             if (this.flatMap[flatIndex] === MapCell.Balk) {
-                console.log(`Found Balk at row=${row}, col=${col}`);
+                // console.log(`Found Balk at row=${row}, col=${col}`);
                 return path;
             }
     
@@ -801,34 +813,33 @@ class GameMap {
     
 
     // Hàm đặt bomb và di chuyển đến vị trí an toàn
-    placeBombAndRetreat(bombPosition) {
+    async placeBombAndRetreat(bombPosition) {
         const playerPosition = this.player.position;
         const neighbors = this.getNeighborNodes(playerPosition);
         const hasBalk = neighbors.some(({ pos }) => this.flatMap[pos] === MapCell.Balk);
         if(bombPosition) {
             // this.socket.emit('drive player', { direction: bombPosition+"b" });
-            this.emitDriver('drive player', { direction: bombPosition });
+            await this.emitDriver('drive player', { direction: bombPosition });
              // Ước lượng thời gian di chuyển
         }
         if(hasBalk) {
-            setTimeout(() => {
-                this.emitDriver('drive player', { direction: "b" });
-            }, 100);
+            this.emitDriver('drive player', { direction: "b" });
         }
     }
     
-    forceMoveTo(path) {
+    async forceMoveTo(path) {
         if (Array.isArray(path)) {
             // Nếu path là một mảng, chuyển thành chuỗi
             path = path.join(""); 
         }
     
         if (path && path.length > 0) {
-            this.socket.emit('drive player', { direction: path });
-            setTimeout(() => {
-                this.awayFromBom = false;
-                console.warn("No valid path for force move.", path);
-            }, 200);
+            await this.socket.emit('drive player', { direction: path });
+            this.awayFromBom = false;
+            // setTimeout(() => {
+                
+            //     console.warn("No valid path for force move.", path);
+            // }, 200);
         } else {
             console.warn("No valid path for force move.");
         }
@@ -836,7 +847,7 @@ class GameMap {
     
     
     
-    forceMoveManuallyAwayFromBomb(bombPosition) {
+    async forceMoveManuallyAwayFromBomb(bombPosition) {
         const directions = [
             { dx: 1, dy: 0 }, // Right
             { dx: -1, dy: 0 }, // Left
@@ -852,8 +863,8 @@ class GameMap {
             const newPos = this.to1dPos(newX, newY);
     
             if (this.isValidPosition(newPos)) {
-                console.log(`Forcing manual move to position: ${newPos}`);
-                this.socket.emit('drive player', { direction: String(newPos) });
+                // console.log(`Forcing manual move to position: ${newPos}`);
+                await this.socket.emit('drive player', { direction: String(newPos) });
                 return;
             }
         }
@@ -943,7 +954,7 @@ class GameMap {
                     const neighborIndex = this.getIndexFromCoordinates(neighbor.x, neighbor.y);
                     if (this.isValidIndex(neighborIndex) && this.flatMap[neighborIndex] === 2) {
                         // Tìm thấy Balk (giá trị 2) gần ô hiện tại
-                        console.log(`Found path to adjacent Balk: ${path}`);
+                        // console.log(`Found path to adjacent Balk: ${path}`);
                         return path; // Trả về đường đi
                     }
                 }
@@ -971,7 +982,8 @@ class GameMap {
     }
 
     checkBombPosition(index) {
-        console.log("check-------", this.bombsPosition, index)
+        // console.log("check-------", this.bombsPosition, index)
+
         if (this.bombsPosition.includes(index)) {
             return false;
         }
@@ -1068,7 +1080,7 @@ class GameMap {
     moveTo(path) {
         if (path && path.length > 0) {
             const pathString = path.join(""); // Chuyển path thành chuỗi
-            console.log(`Sending full path to driver: ${pathString}`);
+            // console.log(`Sending full path to driver: ${pathString}`);
             this.emitDriver('drive player', { direction: pathString }); // Gửi toàn bộ path
             this.isMoving = true; // Đặt trạng thái đang di chuyển
     
@@ -1076,12 +1088,12 @@ class GameMap {
             const estimatedTime = path.length * 500; // Giả sử mỗi bước mất 500ms
             setTimeout(() => {
                 this.isMoving = false; // Reset trạng thái
-                console.log("Arrived at destination.");
+                // console.log("Arrived at destination.");
                 this.currentTarget = null; // Đặt lại mục tiêu
                 this.decideNextAction(); // Thực hiện hành động tiếp theo
             }, estimatedTime);
         } else {
-            console.log("No path to move. Resetting state.");
+            // console.log("No path to move. Resetting state.");
             this.isMoving = false;
             this.currentTarget = null; // Đặt lại mục tiêu
             this.decideNextAction(); // Thực hiện hành động tiếp theo
@@ -1108,7 +1120,7 @@ class GameMap {
             const newPos = this.to1dPos(newX, newY);
     
             if (this.isValidPosition(newPos)) {
-                console.log(`Manually moving to position: ${newPos}`);
+                // console.log(`Manually moving to position: ${newPos}`);
                 this.moveTo([newPos]);
                 return;
             }
@@ -1119,7 +1131,7 @@ class GameMap {
     
     
     handleAfterBombExploded() {
-        console.log("Bomb exploded! Updating map and deciding next action.");
+        // console.log("Bomb exploded! Updating map and deciding next action.");
     
         // Cập nhật lại bản đồ (giả sử bạn đã có logic cập nhật map sau bomb nổ)
         this.updateMapAfterExplosion();
@@ -1130,7 +1142,7 @@ class GameMap {
 
 
     printMap2D() {
-        console.log("Current Map:");
+        // console.log("Current Map:");
         for (let y = 0; y < this.mapHeight; y++) {
             let row = '';
             for (let x = 0; x < this.mapWidth; x++) {
@@ -1186,8 +1198,9 @@ class GameMap {
     isWithinRadius(centerRow, centerCol, targetRow, targetCol, radius) {
         // Tính khoảng cách Euclidean
         const distance = Math.sqrt(Math.pow(centerRow - targetRow, 2) + Math.pow(centerCol - targetCol, 2));
-        // So sánh khoảng cách với bán kính
-        return distance <= radius;
+        
+        // Kiểm tra nếu khoảng cách nằm trong bán kính nhưng không nhỏ hơn 3
+        return distance <= radius && distance >= 3;
     }
 
     // replace vị trí rìu thần thành dranger zone để né. Còn né được hay không thì .. 
@@ -1208,7 +1221,7 @@ class GameMap {
     
                     // Tính khoảng cách Euclidean
                     const distance = Math.sqrt(Math.pow(centerRow - row, 2) + Math.pow(centerCol - col, 2));
-                    if (distance <= radius && this.map[row][col] === 0) {
+                    if (distance <= radius && (this.map[row][col] === MapCell.Road || this.map[row][col] == MapCell.Spoils)) {
                         // Thay thế giá trị nếu trong bán kính và giá trị bằng 0
                         this.map[row][col] = replacementValue;
                     }
@@ -1245,6 +1258,31 @@ class GameMap {
         }
     }
 
+    // Vi tri spoils 
+    spoilPosition(col, row, map) {
+        if(col >= this.mapHeight || row >= this.mapWidth || col < 1 || row < 1 ) {
+            return false
+        }
+        if(map[row][col] == MapCell.Spoils ) {
+            return true
+        } else {
+            return false
+        }
+    }
+    // kiem tra co the di chuyen
+    canPassingTogetItem(col, row, map) {
+        if(col >= this.mapHeight || row >= this.mapWidth || col < 1 || row < 1 ) {
+            return false
+        }
+
+        if(
+            map[row][col] == MapCell.Road) {
+            return true
+        } else {
+            return false
+        }
+    }
+
     // kiem tra co the di chuyen
     canPassing(col, row, map) {
         if(col >= this.mapHeight || row >= this.mapWidth || col < 1 || row < 1 ) {
@@ -1260,8 +1298,9 @@ class GameMap {
             return false
         }
     }
+
     runbomb (fromX, fromY, currentMap) {
-        const maxSteps = 5;
+        const maxSteps = 8;
         let walk = ''
         if(this.safePosition(fromX + 1, fromY, currentMap)) {
             return '4'
@@ -1284,9 +1323,7 @@ class GameMap {
                 break
                 
             }
-            if(this.safePosition(fromX, fromY + step, currentMap)) {
-                return walk
-            }
+            
             if (
                 this.safePosition(fromX + step, fromY, currentMap) &&
                 this.canPassing(fromX + step, fromY + 1, currentMap)
@@ -1309,10 +1346,7 @@ class GameMap {
                 walk = walk + "3"
             } else {
                 break
-            }
-            if(this.safePosition(fromX, fromY + step, currentMap)) {
-                return walk
-            }
+            } 
             if (
                 this.safePosition(fromX - step, fromY, currentMap) &&
                 this.canPassing(fromX - step, fromY + 1, currentMap)
@@ -1336,10 +1370,7 @@ class GameMap {
                 walk = walk + "1"
             } else {
                 break
-            }
-            if(this.safePosition(fromX, fromY + step, currentMap)) {
-                return walk
-            }
+            } 
             console.log("walk" + walk)
             if (
                 this.safePosition(fromX, fromY - step, currentMap) &&
@@ -1369,10 +1400,7 @@ class GameMap {
                 walk = walk + "2"
             } else {
                 break
-            }
-            if(this.safePosition(fromX, fromY + step, currentMap)) {
-                return walk
-            }
+            } 
             if (
                 this.safePosition(fromX, fromY + step, currentMap) &&
                 this.canPassing(fromX + 1, fromY + step, currentMap)
@@ -1388,6 +1416,98 @@ class GameMap {
 
             console.log("walk 4--------- ??", walk)
         }
+    }
+
+    getItem () { 
+        const playerPosition = this.to2dPos(this.player.position)
+        const currentMap = this.convertFlatTo2Dmap()
+        const  fromX = playerPosition.y
+        const fromY = playerPosition.x
+        const maxSteps = 3;
+        let walk = ''
+        console.log(`Start scanning for Spoils from (${fromX}, ${fromY})`);
+        if(this.spoilPosition(fromX + 1, fromY, currentMap)) {
+            console.log("Spoils found below.");
+            return '4'
+        }
+        if(this.spoilPosition(fromX - 1, fromY, currentMap)) {
+            console.log("Spoils found above.");
+            return '3'
+        }
+        if(this.spoilPosition(fromX, fromY + 1, currentMap)) {
+            console.log("Spoils found to the right.");
+            return '2'
+        }
+        if(this.spoilPosition(fromX, fromY - 1, currentMap)) {
+            console.log("Spoils found to the left.");
+            return '1'
+        }
+        
+        // Start scanning further
+        for (let step = 1; step <= maxSteps; step++) {
+            console.log(`Scanning at step ${step}`);
+            for (let subStep = 1; subStep <= step; subStep++) {
+                // Scan downwards
+                walk = ''
+                if (this.canPassingTogetItem(fromX + step, fromY, currentMap)) {
+                    walk = walk + "4".repeat(step);
+                    console.log(`Path to downwards: ${walk}`);
+                    if(this.spoilPosition(fromX + step, fromY + 1, currentMap)) {
+                        console.log("Spoils found below and to the right.");
+                        return walk + "2";
+                    }
+                    if(this.spoilPosition(fromX + step, fromY - 1, currentMap)) {
+                        console.log("Spoils found below and to the left.");
+                        return walk + "1";
+                    }
+                }
+                // Scan upwards
+                walk = ''
+                if (this.canPassingTogetItem(fromX - step, fromY, currentMap)) {
+                    walk = walk + "3".repeat(step);
+                    console.log(`Path to upwards: ${walk}`);
+                    if(this.spoilPosition(fromX - step, fromY + 1, currentMap)) {
+                        console.log("Spoils found above and to the right.");
+                        return walk + "2";
+                    }
+                    if(this.spoilPosition(fromX - step, fromY - 1, currentMap)) {
+                        console.log("Spoils found above and to the left.");
+                        return walk + "1";
+                    }
+                }
+                // Scan leftwards
+                walk = ''
+                if (this.canPassingTogetItem(fromX, fromY  - step, currentMap)) {
+                    walk = walk + "1".repeat(step);
+                    console.log(`Path to leftwards: ${walk}`);
+                    if(this.spoilPosition(fromX - 1, fromY - step, currentMap)) {
+                        console.log("Spoils found to the left and above.");
+                        return walk + "3";
+                    }
+                    if(this.spoilPosition(fromX + 1, fromY - step, currentMap)) {
+                        console.log("Spoils found to the left and below.");
+                        return walk + "4";
+                    }
+                }
+                // Scan rightwards
+                walk = ''
+                console.log("this.canPassingTogetItem(", fromX, fromY  + step)
+                if (this.canPassingTogetItem(fromX, fromY  + step, currentMap)) {
+                    walk = walk + "2".repeat(step);
+                    console.log(`canPassingTogetItem: ${walk}`);
+                    if(this.spoilPosition(fromX - 1, fromY + step, currentMap)) {
+                        console.log("Spoils found to the right and above.");
+                        return walk + "3";
+                    }
+                    if(this.spoilPosition(fromX + 1, fromY + step, currentMap)) {
+                        console.log("Spoils found to the right and below.");
+                        return walk + "4";
+                    }
+                }
+            }   
+        }
+        console.log("No Spoils found within range.");
+        return null;
     }
 }
 
