@@ -90,6 +90,8 @@ class GameMap {
         this.awayFromBom = false;
     }
     async parseTicktack(res) {
+        const currentPlayer = res.map_info.players.find(p => this.playerId.includes(p.id));
+
         if(
             this.playerId.includes(res.player_id) && 
             ( 
@@ -99,7 +101,6 @@ class GameMap {
                 res.tag == STUN
             )
         ) {
-            console.log("-------------------------GAME RESTART---------------------------------");
             this.reset()
         }
 
@@ -110,29 +111,46 @@ class GameMap {
                 res.tag == MOVING_BANNED
             )
         ) {
-            console.log("-------------------------GAME UDPATE---------------------------------");
             this.awayFromBom = false
         }
 
         this.map = res.map_info.map;
 
         const enemy = res.map_info.players.find(p => !this.playerId.includes(p.id));
-        if(enemy) {
+        if(enemy && enemy.hasTransform)  {
             if(enemy.currentPosition.col !== undefined) {
                 this.map[enemy.currentPosition.row][enemy.currentPosition.col] = MapCell.Balk
             }
         }
+        if(enemy && !enemy.hasTransform)  {
+            if(enemy.currentPosition.col !== undefined) {
+                this.map[enemy.currentPosition.row][enemy.currentPosition.col] = MapCell.Border
+            }
+        }
+        this.replaceValuesInRadius(
+            currentPlayer.currentPosition.row, 
+            currentPlayer.currentPosition.col,
+            9, 
+            MapCell.SpecialZone, 
+            MapCell.Road
+        )
+        // check vij trí búa
+        
+        if(res.map_info.weaponHammers.length > 0) {
+            this.updateMapWithICBM(res.map_info.weaponHammers, MapCell.BombZone)
+        }
+        
         this.flatMap = this.map.flat();
         this.mapWidth = res.map_info.size.cols;
         this.mapHeight = res.map_info.size.rows;
         this.spoils = res.map_info.spoils;
-        const currentPlayer = res.map_info.players.find(p => this.playerId.includes(p.id));
+        
         this.player = new GamePlayer(this, currentPlayer);
 
-        console.log("this.player.playerInfo.transformType", this.player.playerInfo.transformType, this.player.playerInfo.timeToUseSpecialWeapons)
         this.bombsPosition = []
         const hasTransform = this.player.playerInfo.hasTransform;
         this.bombs = res.map_info.bombs.filter(bomb => bomb.playerId === this.player.playerInfo.id);
+        // this.printMap2D()
         // console.log("----------------------------------------------------------")
         // console.log("----" + this.bombs.length, this.hasPlacedBomb, hasTransform)
         // console.log("this.position:  " + this.player.position)
@@ -140,19 +158,29 @@ class GameMap {
         // console.log("this.spoils:  " , this.spoils)
         // console.log("----------------------------------------------------------")
 
-        // if(this.player.playerInfo.transformType != undefined  && this.player.playerInfo.timeToUseSpecialWeapons) {
-        //     if(enemy.currentPosition.col !== undefined && enemy.hasTransform) {
-        //         this.socket.emit("action", {
-        //             action: "use weapon",
-        //             payload: {
-        //                 destination: {
-        //                     col: enemy.currentPosition.col,
-        //                     row: enemy.currentPosition.row
-        //                 }
-        //             }
-        //         });
-        //     }
-        // }
+        
+        if(
+            this.player.playerInfo.transformType != undefined  && 
+            this.player.playerInfo.timeToUseSpecialWeapons && 
+            this.isWithinRadius(
+                currentPlayer.currentPosition.row, 
+                currentPlayer.currentPosition.col, 
+                enemy.currentPosition.row, 
+                enemy.currentPosition.col,
+                7)
+            ) {
+            if(enemy.currentPosition.col !== undefined && enemy.hasTransform) {
+                this.socket.emit("action", {
+                    action: "use weapon",
+                    payload: {
+                        destination: {
+                            col: enemy.currentPosition.col,
+                            row: enemy.currentPosition.row
+                        }
+                    }
+                });
+            }
+        }
         this.replaceSpoilsToMapValue()
         // Kiểm tra trạng thái đứng yên
         this.checkIdleStatus();
@@ -165,16 +193,13 @@ class GameMap {
         });
         
         if(this.playerStopNearbyBomb()) {
-            console.log("-------------------------TRUNG SINH-------------------------")
             this.emitDriver('drive player', { direction: 'x' });
             return;
         }
         
         if(this.flatMap[this.player.position] == MapCell.BombZone && !this.awayFromBom ) {
-            console.log("-------------------------Start---------------------------------");
             this.awayFromBom = true
             await this.escapeFromDangerZone()
-            console.log("-------------------------End---------------------------------");
             return
         }
         if (this.bombs.length == 0) {
@@ -1157,8 +1182,57 @@ class GameMap {
         return false
     }
 
+    // kiểm tra vị trí của địch. có nằm trong tầm xả không
+    isWithinRadius(centerRow, centerCol, targetRow, targetCol, radius) {
+        // Tính khoảng cách Euclidean
+        const distance = Math.sqrt(Math.pow(centerRow - targetRow, 2) + Math.pow(centerCol - targetCol, 2));
+        // So sánh khoảng cách với bán kính
+        return distance <= radius;
+    }
 
+    // replace vị trí rìu thần thành dranger zone để né. Còn né được hay không thì .. 
+    updateMapWithICBM(players, replacementValue) {
+        players.forEach((player) => {
+            const { destination, power } = player;
+            const centerRow = destination.row;
+            const centerCol = destination.col;
+            const radius = power;
+    
+            // Duyệt qua các hàng trong phạm vi bán kính
+            for (let row = centerRow - radius; row <= centerRow + radius; row++) {
+                if (row < 0 || row >= this.map.length) continue; // Bỏ qua nếu ngoài giới hạn map
+    
+                // Duyệt qua các cột trong phạm vi bán kính
+                for (let col = centerCol - radius; col <= centerCol + radius; col++) {
+                    if (col < 0 || col >= this.map[row].length) continue; // Bỏ qua nếu ngoài giới hạn map
+    
+                    // Tính khoảng cách Euclidean
+                    const distance = Math.sqrt(Math.pow(centerRow - row, 2) + Math.pow(centerCol - col, 2));
+                    if (distance <= radius && this.map[row][col] === 0) {
+                        // Thay thế giá trị nếu trong bán kính và giá trị bằng 0
+                        this.map[row][col] = replacementValue;
+                    }
+                }
+            }
+        });
+        return true;
+    }
 
+    // replace vùng nổ thành đất cỏ
+    replaceValuesInRadius(centerRow, centerCol, radius, targetValue, newValue) {
+        // Duyệt qua các hàng trong phạm vi bán kính
+        for (let row = Math.max(0, centerRow - radius); row <= Math.min(this.map.length - 1, centerRow + radius); row++) {
+            // Duyệt qua các cột trong phạm vi bán kính
+            for (let col = Math.max(0, centerCol - radius); col <= Math.min(this.map[row].length - 1, centerCol + radius); col++) {
+                // Kiểm tra nếu nằm trong bán kính bằng khoảng cách Euclidean
+                const distance = Math.sqrt(Math.pow(centerRow - row, 2) + Math.pow(centerCol - col, 2));
+                if (distance <= radius && this.map[row][col] === targetValue) {
+                    this.map[row][col] = newValue; // Thay giá trị nếu thỏa mãn
+                }
+            }
+        }
+        return true;
+    }
     // Kiem tra neu la ROAD hoac SPOILS thi return true
     safePosition(col, row, map) {
         if(col >= this.mapHeight || row >= this.mapWidth || col < 1 || row < 1 ) {
