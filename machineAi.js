@@ -172,9 +172,10 @@ class GameMap {
                 currentPlayer.currentPosition.col, 
                 enemy.currentPosition.row, 
                 enemy.currentPosition.col,
-                7)
+                7) &&
+                enemy.hasTransform
             ) {
-            if(enemy.currentPosition.col !== undefined && enemy.hasTransform) {
+            if(enemy.currentPosition.col !== undefined) {
                 this.socket.emit("action", {
                     action: "use weapon",
                     payload: {
@@ -198,7 +199,7 @@ class GameMap {
         });
         
         if(this.playerStopNearbyBomb()) {
-            this.emitDriver('drive player', { direction: 'x' });
+            await this.emitDriver('drive player', { direction: 'x' });
             return;
         }
         
@@ -347,7 +348,7 @@ class GameMap {
         }
     }
 
-    forceRandomMove() {
+    async forceRandomMove() {
         const neighbors = this.getNeighborNodes(this.player.position);
     
         // Chọn ngẫu nhiên một ô lân cận có thể di chuyển
@@ -358,7 +359,7 @@ class GameMap {
         if (validNeighbors.length > 0) {
             const randomNeighbor = validNeighbors[Math.floor(Math.random() * validNeighbors.length)];
             // console.log(`Forced move to direction: ${randomNeighbor.dir}`);
-            this.emitDriver('drive player', { direction: randomNeighbor.dir });
+            await this.emitDriver('drive player', { direction: randomNeighbor.dir });
         }
     }
     
@@ -484,27 +485,27 @@ class GameMap {
             this.moveTo(path); // Di chuyển đến gần tường gạch
     
             // Sau khi di chuyển xong
-            setTimeout(() => {
+            setTimeout(async () => {
                 this.isMoving = false;
     
                 const playerPosition = this.player.position;
                 const directionToBrick = this.getDirectionToNeighbor(playerPosition, targetPos);
     
                 if (directionToBrick) {
-                    this.emitDriver('drive player', { direction: directionToBrick }); // Quay mặt vào tường
+                    await this.emitDriver('drive player', { direction: directionToBrick }); // Quay mặt vào tường
     
-                    setTimeout(() => {
-                        this.emitDriver('drive player', { direction: "b" }); // Phá tường
+                    // setTimeout(() => {
+                        await this.emitDriver('drive player', { direction: "b" }); // Phá tường
     
                         // Cập nhật bản đồ sau khi phá tường
                         this.updateMapAfterBreaking(targetPos);
     
                         // Kiểm tra và phá tiếp các tường xung quanh nếu có
-                        setTimeout(() => {
+                        // setTimeout(() => {
                             this.isBreaking = false;
                             this.breakSurroundingBrickWalls(); // Kiểm tra và phá tiếp các tường xung quanh
-                        }, 100);
-                    }, 200); // Đợi sau khi quay mặt để phá tường
+                        // }, 100);
+                    // }, 200); // Đợi sau khi quay mặt để phá tường
                 }
             }, path.length * 30); // Thời gian chờ phụ thuộc vào độ dài đường đi
         }
@@ -561,14 +562,14 @@ class GameMap {
     
 
     async emitDriver(event, data) {
-        if (!this.emitStatus) {
+        // if (!this.emitStatus) {
             this.emitStatus = true;
             await this.socket.emit(event, data);
             this.emitStatus = false;
             
-        } else {
+        // } else {
             console.log("Emit blocked due to cooldown.");
-        }
+        // }
     }
 
     findClosestCell(playerPosition, cellType) {
@@ -823,7 +824,7 @@ class GameMap {
              // Ước lượng thời gian di chuyển
         }
         if(hasBalk) {
-            this.emitDriver('drive player', { direction: "b" });
+            await this.emitDriver('drive player', { direction: "b" });
         }
     }
     
@@ -1077,11 +1078,11 @@ class GameMap {
         return cellValue === MapCell.Road || cellValue === MapCell.GodBadge || cellValue === MapCell.Spoils; // Chỉ cho phép ô trống và GodBadge
     }
 
-    moveTo(path) {
+    async moveTo(path) {
         if (path && path.length > 0) {
             const pathString = path.join(""); // Chuyển path thành chuỗi
             // console.log(`Sending full path to driver: ${pathString}`);
-            this.emitDriver('drive player', { direction: pathString }); // Gửi toàn bộ path
+            await this.emitDriver('drive player', { direction: pathString }); // Gửi toàn bộ path
             this.isMoving = true; // Đặt trạng thái đang di chuyển
     
             // Giả lập hoàn tất sau một thời gian tùy thuộc vào độ dài path
