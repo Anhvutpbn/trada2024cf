@@ -69,6 +69,7 @@ class GameMap {
          this.lastMoveTime = Date.now(); // Lần cuối cùng di chuyển
          this.lastPosition = null; // Vị trí lần cuối
          this.awayFromBom = false;
+         this.caculatorResetTime = 0;
     }
     reset() {
         // Đặt lại tất cả các biến về giá trị mặc định
@@ -88,36 +89,12 @@ class GameMap {
         this.lastMoveTime = Date.now(); // Cập nhật thời gian di chuyển cuối
         this.lastPosition = null;
         this.awayFromBom = false;
+        this.caculatorResetTime = 0;
     }
     async parseTicktack(res) {
         const currentPlayer = res.map_info.players.find(p => this.playerId.includes(p.id));
-        // if(this.playerId.includes(res.player_id) && res.tag == STOP_MOVING && !this.isWaitingAtGodBadge) {
-        //     this.reset()
-        //     return
-        // }
-        // if(
-        //     this.playerId.includes(res.player_id) && 
-        //     ( 
-        //         res.tag == BOMB_EXPLODED || 
-        //         res.tag == MOVING_BANNED ||
-        //         res.tag == BTPG ||
-        //         res.tag == STUN
-        //     )
-        // ) {
-        //     this.reset()
-        //     return
-        // }
-
-        // if(
-        //     this.playerId.includes(res.player_id) && 
-        //     ( 
-        //         res.tag == STOP_MOVING|| 
-        //         res.tag == MOVING_BANNED
-        //     )
-        // ) {
-        //     this.reset()
-        //     return
-        // }
+        this.caculatorResetTime++
+        console.log("this.caculatorResetTime....", this.caculatorResetTime)
 
         this.map = res.map_info.map;
 
@@ -155,15 +132,7 @@ class GameMap {
         this.bombsPosition = []
         const hasTransform = this.player.playerInfo.hasTransform;
         this.bombs = res.map_info.bombs.filter(bomb => bomb.playerId === this.player.playerInfo.id);
-        // this.printMap2D()
-        // console.log("----------------------------------------------------------")
-        // console.log("----" + this.bombs.length, this.hasPlacedBomb, hasTransform)
-        // console.log("this.position:  " + this.player.position)
-        // console.log("this.bombs:  " , res.map_info.bombs, this.player.playerInfo.power)
-        // console.log("this.spoils:  " , this.spoils)
-        // console.log("----------------------------------------------------------")
-
-        
+    
         if(
             this.player.playerInfo.transformType != undefined  && 
             this.player.playerInfo.timeToUseSpecialWeapons && 
@@ -203,10 +172,11 @@ class GameMap {
             return;
         }
         
-        if(this.flatMap[this.player.position] == MapCell.BombZone && !this.awayFromBom ) {
+        if(this.flatMap[this.player.position] == MapCell.BombZone) {
             this.awayFromBom = true
-            console.log("-------------------------RUN---------------------------------")
-            await this.escapeFromDangerZone()
+            const spoilsPath = this.findEscapePath(); // Tìm đường thoát trong bán kính 5 ô
+            console.log("----- -------RUN------ --------", spoilsPath)
+            await this.socket.emit('drive player', { direction: spoilsPath });
             return
         }
         if (hasTransform === undefined) {
@@ -215,17 +185,15 @@ class GameMap {
         }
 
         // Picking Item TODO
-        // if (this.bombs.length == 0  && hasTransform) {
-        //     const spoilsPath = this.getItem(); // Tìm Spoils trong bán kính 5 ô
-        //     console.log(`Found spoils at path: ${spoilsPath}`);
-        //         if (spoilsPath) {
-        //             console.log(`Found spoils at path: ${spoilsPath}`);
-        //             this.socket.emit('drive player', { direction: spoilsPath });
-        //         } else {
-        //             return this.decideNextAction(hasTransform);
-        //         }
-        //     return;
-        // }
+        if (this.bombs.length == 0  && hasTransform && !this.isWaitingAtGodBadge) {
+            const spoilsPath = this.getItem(); // Tìm Spoils trong bán kính 5 ô
+                if (spoilsPath) {
+                    this.socket.emit('drive player', { direction: spoilsPath });
+                } else {
+                    // return this.decideNextAction(hasTransform);
+                }
+            // return;
+        }
     
         // Nếu không trong vùng nguy hiểm, tiếp tục xử lý logic thông thường
         // console.log("Nếu không trong vùng nguy hiểm, tiếp tục xử lý logic thông thường", this.hasPlacedBomb)     
@@ -308,18 +276,18 @@ class GameMap {
 
     }
     
-    async escapeFromDangerZone() {
-        // Tìm vị trí an toàn gần nhất
-        const playerPosition = this.to2dPos(this.player.position)
-        const map = this.convertFlatTo2Dmap()
-        let safePosition = this.runbomb( playerPosition.y, playerPosition.x, map);
-        if (safePosition !== null) {
-            this.forceMoveTo(safePosition); // Di chuyển ngay lập tức
-            return;
-        } else {
-            console.warn("No safe position found. Attempting manual escape.");
-        }
-    }
+    // async escapeFromDangerZone() {
+    //     // Tìm vị trí an toàn gần nhất
+    //     const playerPosition = this.to2dPos(this.player.position)
+    //     const map = this.convertFlatTo2Dmap()
+    //     let safePosition = this.runbomb( playerPosition.y, playerPosition.x, map);
+    //     if (safePosition !== null) {
+    //         this.forceMoveTo(safePosition); // Di chuyển ngay lập tức
+    //         return;
+    //     } else {
+    //         console.warn("No safe position found. Attempting manual escape.");
+    //     }
+    // }
     
     convertFlatTo2Dmap() {
         const map = [];
@@ -358,7 +326,6 @@ class GameMap {
     
         if (validNeighbors.length > 0) {
             const randomNeighbor = validNeighbors[Math.floor(Math.random() * validNeighbors.length)];
-            // console.log(`Forced move to direction: ${randomNeighbor.dir}`);
             await this.emitDriver('drive player', { direction: randomNeighbor.dir });
         }
     }
@@ -404,7 +371,6 @@ class GameMap {
         // console.warn("Nếu đã transformed, chỉ đặt bomb và tránh vùng nổ");
         // Nếu đã transformed, chỉ đặt bomb và tránh vùng nổ
         if (hasTransform) {
-            // console.log("Player is transformed. Switching to bomb logic.");
     
             if (this.player.playerInfo.currentWeapon !== 2) {
                 this.socket.emit('action', { action: "switch weapon" });
@@ -561,15 +527,8 @@ class GameMap {
     }
     
 
-    async emitDriver(event, data) {
-        // if (!this.emitStatus) {
-            this.emitStatus = true;
-            await this.socket.emit(event, data);
-            this.emitStatus = false;
-            
-        // } else {
-            console.log("Emit blocked due to cooldown.");
-        // }
+    async emitDriver(event, data, from) {
+        await this.socket.emit(event, data);
     }
 
     findClosestCell(playerPosition, cellType) {
@@ -1315,7 +1274,7 @@ class GameMap {
         if(this.safePosition(fromX, fromY - 1, currentMap)) {
             return '1'
         }
-        console.log("walk 1", walk)
+        
         // di xuong
         for (let step = 1; step <= maxSteps; step++) {
             if (this.canPassing(fromX + step, fromY, currentMap)) {
@@ -1337,9 +1296,9 @@ class GameMap {
             ) {
                 return walk + "1"
             }
-            console.log("walk 1--------- ??", walk)
+            
         }
-        console.log("walk 2", walk)
+        
         // di len
         walk = ''
         for (let step = 1; step <= maxSteps; step++) {
@@ -1361,9 +1320,9 @@ class GameMap {
                 return walk + "1"
             }
 
-            console.log("walk 2--------- ??", walk)
+            
         }
-        console.log("walk 3", walk)
+        
         walk = ''
         // Sang trai
         for (let step = 1; step <= maxSteps; step++) {
@@ -1372,12 +1331,12 @@ class GameMap {
             } else {
                 break
             } 
-            console.log("walk" + walk)
+            
             if (
                 this.safePosition(fromX, fromY - step, currentMap) &&
                 this.canPassing(fromX + 1, fromY - step, currentMap)
             ) {
-                console.log(currentMap[fromX + 1][fromY - step])
+                
 
                 return walk + "4"
             }
@@ -1385,13 +1344,13 @@ class GameMap {
                 this.safePosition(fromX, fromY - step, currentMap) &&
                 this.canPassing(fromX - 1, fromY - step, currentMap)
             ) {
-                console.log(currentMap[fromX - 1][fromY - step])
+                
 
                 return walk + "3"
             }
-            console.log("walk 3--------- ??", walk)
+            
         }
-        console.log("walk 4", walk)
+        
 
         walk = ''
         // Sang phai
@@ -1414,102 +1373,144 @@ class GameMap {
             ) {
                 return walk + "3"
             }
-
-            console.log("walk 4--------- ??", walk)
+            
         }
     }
 
-    getItem () { 
-        const playerPosition = this.to2dPos(this.player.position)
-        const currentMap = this.convertFlatTo2Dmap()
-        const  fromX = playerPosition.y
-        const fromY = playerPosition.x
-        const maxSteps = 3;
-        let walk = ''
-        console.log(`Start scanning for Spoils from (${fromX}, ${fromY})`);
-        if(this.spoilPosition(fromX + 1, fromY, currentMap)) {
-            console.log("Spoils found below.");
-            return '4'
-        }
-        if(this.spoilPosition(fromX - 1, fromY, currentMap)) {
-            console.log("Spoils found above.");
-            return '3'
-        }
-        if(this.spoilPosition(fromX, fromY + 1, currentMap)) {
-            console.log("Spoils found to the right.");
-            return '2'
-        }
-        if(this.spoilPosition(fromX, fromY - 1, currentMap)) {
-            console.log("Spoils found to the left.");
-            return '1'
-        }
-        
-        // Start scanning further
-        for (let step = 1; step <= maxSteps; step++) {
-            console.log(`Scanning at step ${step}`);
-            for (let subStep = 1; subStep <= step; subStep++) {
-                // Scan downwards
-                walk = ''
-                if (this.canPassingTogetItem(fromX + step, fromY, currentMap)) {
-                    walk = walk + "4".repeat(step);
-                    console.log(`Path to downwards: ${walk}`);
-                    if(this.spoilPosition(fromX + step, fromY + 1, currentMap)) {
-                        console.log("Spoils found below and to the right.");
-                        return walk + "2";
-                    }
-                    if(this.spoilPosition(fromX + step, fromY - 1, currentMap)) {
-                        console.log("Spoils found below and to the left.");
-                        return walk + "1";
-                    }
+    getItem() { 
+        const playerPosition = this.to2dPos(this.player.position);
+        const map = this.convertFlatTo2Dmap();
+        const startRow = playerPosition.y;
+        const startCol = playerPosition.x;
+        const radius = 5;
+    
+        const directions = [
+            { row: 0, col: -1, move: MoveDirection.LEFT },
+            { row: 0, col: 1, move: MoveDirection.RIGHT },
+            { row: -1, col: 0, move: MoveDirection.UP },
+            { row: 1, col: 0, move: MoveDirection.DOWN },
+        ];
+    
+        const rows = map.length;
+        const cols = map[0].length;
+    
+        const isValid = (row, col, visited) => {
+            return (
+                row >= 0 &&
+                row < rows &&
+                col >= 0 &&
+                col < cols &&
+                (map[row][col] === 0 || map[row][col] === 99) &&
+                !visited[row][col]
+            );
+        };
+    
+        const queue = [{ row: startRow, col: startCol, path: "" }]; // Bắt đầu với chuỗi rỗng
+        const visited = Array.from({ length: rows }, () => Array(cols).fill(false));
+        visited[startRow][startCol] = true;
+    
+        while (queue.length > 0) {
+            const { row, col, path } = queue.shift();
+    
+            // Kiểm tra nếu tìm thấy đích
+            if (map[row][col] === 99) {
+                console.log(`----------------------${path}---------`);
+                return path; // Trả về chuỗi đường đi
+            }
+    
+            // Duyệt qua các hướng
+            for (const { row: dr, col: dc, move } of directions) {
+                const newRow = row + dr;
+                const newCol = col + dc;
+    
+                // Tính khoảng cách Euclidean
+                const distance = Math.sqrt(Math.pow(newRow - startRow, 2) + Math.pow(newCol - startCol, 2));
+                if (distance > radius) continue; // Bỏ qua nếu ngoài bán kính
+    
+                if (isValid(newRow, newCol, visited)) {
+                    visited[newRow][newCol] = true;
+                    queue.push({ row: newRow, col: newCol, path: path + move }); // Nối hướng di chuyển vào chuỗi
                 }
-                // Scan upwards
-                walk = ''
-                if (this.canPassingTogetItem(fromX - step, fromY, currentMap)) {
-                    walk = walk + "3".repeat(step);
-                    console.log(`Path to upwards: ${walk}`);
-                    if(this.spoilPosition(fromX - step, fromY + 1, currentMap)) {
-                        console.log("Spoils found above and to the right.");
-                        return walk + "2";
-                    }
-                    if(this.spoilPosition(fromX - step, fromY - 1, currentMap)) {
-                        console.log("Spoils found above and to the left.");
-                        return walk + "1";
-                    }
-                }
-                // Scan leftwards
-                walk = ''
-                if (this.canPassingTogetItem(fromX, fromY  - step, currentMap)) {
-                    walk = walk + "1".repeat(step);
-                    console.log(`Path to leftwards: ${walk}`);
-                    if(this.spoilPosition(fromX - 1, fromY - step, currentMap)) {
-                        console.log("Spoils found to the left and above.");
-                        return walk + "3";
-                    }
-                    if(this.spoilPosition(fromX + 1, fromY - step, currentMap)) {
-                        console.log("Spoils found to the left and below.");
-                        return walk + "4";
-                    }
-                }
-                // Scan rightwards
-                walk = ''
-                console.log("this.canPassingTogetItem(", fromX, fromY  + step)
-                if (this.canPassingTogetItem(fromX, fromY  + step, currentMap)) {
-                    walk = walk + "2".repeat(step);
-                    console.log(`canPassingTogetItem: ${walk}`);
-                    if(this.spoilPosition(fromX - 1, fromY + step, currentMap)) {
-                        console.log("Spoils found to the right and above.");
-                        return walk + "3";
-                    }
-                    if(this.spoilPosition(fromX + 1, fromY + step, currentMap)) {
-                        console.log("Spoils found to the right and below.");
-                        return walk + "4";
-                    }
-                }
-            }   
+            }
         }
-        console.log("No Spoils found within range.");
+    
+        // Không tìm thấy đường đi
         return null;
     }
+
+    print2DArray(array) {
+        array.forEach(row => {
+            console.log(row.join(" ")); // Nối các phần tử trong hàng bằng khoảng trắng
+        });
+    }
+    findEscapePath() {
+        const playerPosition = this.to2dPos(this.player.position);
+        const map = this.convertFlatTo2Dmap();
+        const startRow = playerPosition.y;
+        const startCol = playerPosition.x;
+        const radius = 8;
+    // this.print2DArray(map)
+        const directions = [
+            { row: 0, col: -1, move: MoveDirection.LEFT },
+            { row: 0, col: 1, move: MoveDirection.RIGHT },
+            { row: -1, col: 0, move: MoveDirection.UP },
+            { row: 1, col: 0, move: MoveDirection.DOWN },
+        ];
+    
+        const rows = map.length;
+        const cols = map[0].length;
+    
+        // Xác định nếu bắt đầu trong ô 77
+        const isIn77 = map[startRow][startCol] === 77;
+        console.log("=========", map[startRow][startCol])
+        const isValid = (row, col, visited) => {
+            return (
+                row >= 0 &&
+                row < rows &&
+                col >= 0 &&
+                col < cols &&
+                (
+                    (isIn77 && (map[row][col] === 77 || map[row][col] === 0 || map[row][col] === 99)) ||
+                    (!isIn77 && (map[row][col] === 0 || map[row][col] === 99))
+                ) &&
+                !visited[row][col]
+            );
+        };
+    
+        const queue = [{ row: startRow, col: startCol, path: "" }]; // Bắt đầu với chuỗi rỗng
+        const visited = Array.from({ length: rows }, () => Array(cols).fill(false));
+        visited[startRow][startCol] = true;
+    
+        while (queue.length > 0) {
+            const { row, col, path } = queue.shift();
+    
+            // Kiểm tra nếu tìm thấy đích
+            if (map[row][col] === MapCell.Spoils || map[row][col] === MapCell.Road) {
+                console.log(`--------findEscapePath---${path}---------`);
+                return path; // Trả về chuỗi đường đi
+            }
+    
+            // Duyệt qua các hướng
+            for (const { row: dr, col: dc, move } of directions) {
+                const newRow = row + dr;
+                const newCol = col + dc;
+    
+                // Tính khoảng cách Euclidean
+                const distance = Math.sqrt(Math.pow(newRow - startRow, 2) + Math.pow(newCol - startCol, 2));
+                if (distance > radius) continue; // Bỏ qua nếu ngoài bán kính
+    
+                if (isValid(newRow, newCol, visited)) {
+                    visited[newRow][newCol] = true;
+                    queue.push({ row: newRow, col: newCol, path: path + move }); // Nối hướng di chuyển vào chuỗi
+                }
+            }
+        }
+    
+        // Không tìm thấy đường đi
+        return null;
+    }
+
+    
 }
 
 export { MapCell, MoveDirection, TreeNode, GamePlayer, GameMap };

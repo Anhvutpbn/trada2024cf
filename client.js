@@ -1,5 +1,5 @@
 import {MapCell, MoveDirection, TreeNode, GamePlayer, GameMap } from './machineAi.js';
-const gameId = '21cf6795-87b7-42bc-8c55-9570723ddce3';
+const gameId = '2ba69b1d-ed2b-43e0-a803-fee2befbd2fb';
 let MAP = {};
 let BOMB = [];
 let SPOILS = [];
@@ -9,10 +9,10 @@ let players;
 
 // client.js
 import { connect } from 'socket.io-client';
-const apiServer = 'http://192.168.126.185';
+const apiServer = 'http://192.168.1.58';
 const socket = connect(apiServer, {reconnect: true, transports: ['websocket']});
-const playerId = 'player1-xxx';
-const optionJoin = {game_id: gameId, player_id: "player1-xxx"}
+const playerId = 'player2-xxx';
+const optionJoin = {game_id: gameId, player_id: "player2-xxx"}
 
 // It it required to emit `join channel` event every time connection is happened
 socket.on('connect', () => {
