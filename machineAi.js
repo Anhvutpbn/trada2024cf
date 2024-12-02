@@ -50,6 +50,7 @@ class GameMap {
     constructor(socket, playerId) {
         this.socket = socket;
         this.playerId = playerId;
+        this.playerIdChill = playerId+"_child";
         this.map = [];
         this.flatMap = [];
         this.mapWidth = 26;
@@ -98,23 +99,33 @@ class GameMap {
 
         this.map = res.map_info.map;
 
-        const enemy = res.map_info.players.find(p => !this.playerId.includes(p.id));
-        const enemyChild = res.map_info.players.find(p => !this.playerId+"_child".includes(p.id));
-        if(enemy && enemy.hasTransform)  {
-            if(enemy.currentPosition.col !== undefined) {
-                this.map[enemy.currentPosition.row][enemy.currentPosition.col] = MapCell.Balk
-            }
+        const enemies = res.map_info.players.filter(
+            p => p.id !== this.playerId && p.id !== this.playerIdChill
+          );
+          
+        if (enemies.length > 0) {
+            enemies.forEach(enemy => {
+                if (enemy.currentPosition.col !== undefined) {
+                    this.map[enemy.currentPosition.row][enemy.currentPosition.col] = MapCell.Balk;
+                }
+            });
         }
-        if(enemyChild && enemyChild.hasTransform)  {
-            if(enemyChild.currentPosition.col !== undefined) {
-                this.map[enemyChild.currentPosition.row][enemyChild.currentPosition.col] = MapCell.Balk
+        
+        const nonChildEnemies = enemies.filter(enemy => !enemy.id.endsWith('_child'));
+        nonChildEnemies.forEach(enemy => {
+            if (!enemy.hasTransform) {
+                if (enemy.currentPosition.col !== undefined) {
+                    this.map[enemy.currentPosition.row][enemy.currentPosition.col] = MapCell.Border;
+                }
             }
-        }
-        if(enemy && !enemy.hasTransform)  {
-            if(enemy.currentPosition.col !== undefined) {
-                this.map[enemy.currentPosition.row][enemy.currentPosition.col] = MapCell.Border
-            }
-        }
+        });
+
+        // if(enemy && !enemy.hasTransform)  {
+        //     if(enemy.currentPosition.col !== undefined) {
+        //         this.map[enemy.currentPosition.row][enemy.currentPosition.col] = MapCell.Border
+        //     }
+        // }
+
         this.replaceValuesInRadius(
             currentPlayer.currentPosition.row, 
             currentPlayer.currentPosition.col,
@@ -138,31 +149,62 @@ class GameMap {
         this.bombsPosition = []
         const hasTransform = this.player.playerInfo.hasTransform;
         this.bombs = res.map_info.bombs.filter(bomb => bomb.playerId === this.player.playerInfo.id);
-    
-        if(
-            enemy !== undefined &&
-            this.player.playerInfo.transformType != undefined  && 
-            this.player.playerInfo.timeToUseSpecialWeapons && 
-            this.isWithinRadius(
-                currentPlayer.currentPosition.row, 
-                currentPlayer.currentPosition.col, 
-                enemy.currentPosition.row, 
-                enemy.currentPosition.col,
-                7) &&
-                enemy.hasTransform
-            ) {
-            if(enemy.currentPosition.col !== undefined) {
-                this.socket.emit("action", {
-                    action: "use weapon",
-                    payload: {
-                        destination: {
-                            col: enemy.currentPosition.col,
-                            row: enemy.currentPosition.row
-                        }
+        
+        if(enemies.length > 0) {
+            for (const enemy of enemies) {
+                if (
+                    enemy !== undefined &&
+                    this.player.playerInfo.transformType !== undefined &&
+                    this.player.playerInfo.timeToUseSpecialWeapons &&
+                    this.isWithinRadius(
+                        currentPlayer.currentPosition.row, 
+                        currentPlayer.currentPosition.col, 
+                        enemy.currentPosition.row, 
+                        enemy.currentPosition.col,
+                        7
+                    ) &&
+                    enemy.hasTransform
+                ) {
+                    if (enemy.currentPosition.col !== undefined) {
+                        await this.socket.emit("action", {
+                            action: "use weapon",
+                            payload: {
+                                destination: {
+                                    col: enemy.currentPosition.col,
+                                    row: enemy.currentPosition.row
+                                }
+                            }
+                        });
                     }
-                });
+                    // Dừng loop ngay khi tìm thấy enemy phù hợp
+                    break;
+                }
             }
         }
+        // if(
+        //     enemy !== undefined &&
+        //     this.player.playerInfo.transformType != undefined  && 
+        //     this.player.playerInfo.timeToUseSpecialWeapons && 
+        //     this.isWithinRadius(
+        //         currentPlayer.currentPosition.row, 
+        //         currentPlayer.currentPosition.col, 
+        //         enemy.currentPosition.row, 
+        //         enemy.currentPosition.col,
+        //         7) &&
+        //         enemy.hasTransform
+        //     ) {
+        //     if(enemy.currentPosition.col !== undefined) {
+        //         this.socket.emit("action", {
+        //             action: "use weapon",
+        //             payload: {
+        //                 destination: {
+        //                     col: enemy.currentPosition.col,
+        //                     row: enemy.currentPosition.row
+        //                 }
+        //             }
+        //         });
+        //     }
+        // }
         this.replaceSpoilsToMapValue()
         // Kiểm tra trạng thái đứng yên
         this.checkIdleStatus();
