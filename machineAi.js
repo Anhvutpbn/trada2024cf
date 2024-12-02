@@ -99,9 +99,15 @@ class GameMap {
         this.map = res.map_info.map;
 
         const enemy = res.map_info.players.find(p => !this.playerId.includes(p.id));
+        const enemyChild = res.map_info.players.find(p => !this.playerId+"_child".includes(p.id));
         if(enemy && enemy.hasTransform)  {
             if(enemy.currentPosition.col !== undefined) {
                 this.map[enemy.currentPosition.row][enemy.currentPosition.col] = MapCell.Balk
+            }
+        }
+        if(enemyChild && enemyChild.hasTransform)  {
+            if(enemyChild.currentPosition.col !== undefined) {
+                this.map[enemyChild.currentPosition.row][enemyChild.currentPosition.col] = MapCell.Balk
             }
         }
         if(enemy && !enemy.hasTransform)  {
@@ -134,6 +140,7 @@ class GameMap {
         this.bombs = res.map_info.bombs.filter(bomb => bomb.playerId === this.player.playerInfo.id);
     
         if(
+            enemy !== undefined &&
             this.player.playerInfo.transformType != undefined  && 
             this.player.playerInfo.timeToUseSpecialWeapons && 
             this.isWithinRadius(
