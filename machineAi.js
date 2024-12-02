@@ -148,7 +148,7 @@ class GameMap {
         const hasTransform = this.player.playerInfo.hasTransform;
         this.bombs = res.map_info.bombs.filter(bomb => bomb.playerId === this.player.playerInfo.id);
         
-        if (enemies.length > 0) {
+        if (enemies.length > 0 && this.parentSkill) {
             for (const enemy of enemies) {
                 console.log(enemy);
                 const isChild = enemy.id.endsWith('_child'); // Kiểm tra nếu ID kết thúc bằng '_child'
@@ -166,6 +166,7 @@ class GameMap {
                     (isChild || enemy.hasTransform) // Nếu là _child hoặc có hasTransform
                 ) {
                     if (enemy.currentPosition.col !== undefined) {
+                        this.parentSkill = false 
                         await this.socket.emit("action", {
                             action: "use weapon",
                             payload: {
@@ -175,6 +176,9 @@ class GameMap {
                                 }
                             }
                         });
+                        setTimeout(() => {
+                            this.parentSkill = true 
+                        }, 400);
                     }
                     // Dừng loop ngay khi tìm thấy enemy phù hợp
                     break;
