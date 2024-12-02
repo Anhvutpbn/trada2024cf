@@ -167,11 +167,7 @@ class GameMap {
             console.warn("Transform state is undefined. Skipping action.");
             return;
         }
-
-        if(!hasTransform) {
-            return this.decideNextAction(hasTransform);
-        }
-
+        
         this.replaceSpoilsToMapValue()
         // Kiểm tra trạng thái đứng yên
         this.checkIdleStatus();
