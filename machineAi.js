@@ -99,7 +99,7 @@ class GameMap {
     async parseTicktack(res) {
         const currentPlayer = res.map_info.players.find(p => this.playerId.includes(p.id));
         this.caculatorResetTime++
-        console.log("this.caculatorResetTime....", this.caculatorResetTime)
+        // console.log("this.caculatorResetTime....", this.caculatorResetTime)
 
         this.map = res.map_info.map;
 
@@ -147,10 +147,38 @@ class GameMap {
         this.bombsPosition = []
         const hasTransform = this.player.playerInfo.hasTransform;
         this.bombs = res.map_info.bombs.filter(bomb => bomb.playerId === this.player.playerInfo.id);
+    
+        // Lặp qua tất cả các bomb trên bản đồ và tính toán vùng ảnh hưởng
+        await res.map_info.bombs.forEach(bomb => {
+            const bombPosition = this.to1dPos(bomb.col, bomb.row);
+            this.bombsPosition.push(bombPosition)
+            this.replaceBombImpactWithSpecialZone(bombPosition)
+        });
         
+        if(this.flatMap[this.player.position] == MapCell.BombZone) {
+            this.awayFromBom = true
+            const spoilsPath = this.findEscapePath(); // Tìm đường thoát trong bán kính 5 ô
+            // console.log("----- -------RUN------ --------", spoilsPath)
+            await this.socket.emit('drive player', { direction: spoilsPath });
+            return
+        }
+
+        if (hasTransform === undefined) {
+            console.warn("Transform state is undefined. Skipping action.");
+            return;
+        }
+
+        if(!hasTransform) {
+            return this.decideNextAction(hasTransform);
+        }
+
+        this.replaceSpoilsToMapValue()
+        // Kiểm tra trạng thái đứng yên
+        this.checkIdleStatus();
+
         if (enemies.length > 0 && this.parentSkill) {
             for (const enemy of enemies) {
-                console.log(enemy);
+                // console.log(enemy);
                 const isChild = enemy.id.endsWith('_child'); // Kiểm tra nếu ID kết thúc bằng '_child'
         
                 if (
@@ -166,6 +194,7 @@ class GameMap {
                     (isChild || enemy.hasTransform) // Nếu là _child hoặc có hasTransform
                 ) {
                     if (enemy.currentPosition.col !== undefined) {
+                        console.log("------------------------------------------------------------------")
                         this.parentSkill = false 
                         await this.socket.emit("action", {
                             action: "use weapon",
@@ -178,7 +207,7 @@ class GameMap {
                         });
                         setTimeout(() => {
                             this.parentSkill = true 
-                        }, 400);
+                        }, 1000);
                     }
                     // Dừng loop ngay khi tìm thấy enemy phù hợp
                     break;
@@ -186,34 +215,9 @@ class GameMap {
             }
         }
 
-        this.replaceSpoilsToMapValue()
-        // Kiểm tra trạng thái đứng yên
-        this.checkIdleStatus();
-    
-        // Lặp qua tất cả các bomb trên bản đồ và tính toán vùng ảnh hưởng
-        await res.map_info.bombs.forEach(bomb => {
-            const bombPosition = this.to1dPos(bomb.col, bomb.row);
-            this.bombsPosition.push(bombPosition)
-            this.replaceBombImpactWithSpecialZone(bombPosition)
-        });
-        
         if(this.playerStopNearbyBomb()) {
             await this.emitDriver('drive player', { direction: 'x' });
-            return;
         }
-        
-        if(this.flatMap[this.player.position] == MapCell.BombZone) {
-            this.awayFromBom = true
-            const spoilsPath = this.findEscapePath(); // Tìm đường thoát trong bán kính 5 ô
-            console.log("----- -------RUN------ --------", spoilsPath)
-            await this.socket.emit('drive player', { direction: spoilsPath });
-            return
-        }
-        if (hasTransform === undefined) {
-            console.warn("Transform state is undefined. Skipping action.");
-            return;
-        }
-
         // Picking Item TODO
         if (this.bombs.length == 0  && hasTransform && !this.isWaitingAtGodBadge) {
             const spoilsPath = this.getItem(); // Tìm Spoils trong bán kính 5 ô
@@ -379,7 +383,7 @@ class GameMap {
                 return;
             }
         }
-        console.log("Ưu tiên đến GodBadge nếu chưa transformed");
+        // console.log("Ưu tiên đến GodBadge nếu chưa transformed");
         // Ưu tiên đến GodBadge nếu chưa transformed
         const closestGodBadge = this.findClosestCell(playerPosition, MapCell.GodBadge);
         if (closestGodBadge !== null && this.currentTarget !== closestGodBadge) {
@@ -709,7 +713,7 @@ class GameMap {
         }
     
         // Nếu không tìm thấy đường đi
-        console.log("No valid path found.");
+        // console.log("No valid path found.");
         return null;
     }
     
@@ -1202,7 +1206,6 @@ class GameMap {
     
             // Kiểm tra nếu tìm thấy đích
             if (map[row][col] === 99) {
-                console.log(`----------------------${path}---------`);
                 return path; // Trả về chuỗi đường đi
             }
     
@@ -1250,7 +1253,6 @@ class GameMap {
     
         // Xác định nếu bắt đầu trong ô 77
         const isIn77 = map[startRow][startCol] === 77;
-        console.log("=========", map[startRow][startCol])
         const isValid = (row, col, visited) => {
             return (
                 row >= 0 &&
@@ -1274,7 +1276,7 @@ class GameMap {
     
             // Kiểm tra nếu tìm thấy đích
             if (map[row][col] === MapCell.Spoils || map[row][col] === MapCell.Road) {
-                console.log(`--------findEscapePath---${path}---------`);
+                // console.log(`--------findEscapePath---${path}---------`);
                 return path; // Trả về chuỗi đường đi
             }
     
