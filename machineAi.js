@@ -158,7 +158,6 @@ class GameMap {
         if(this.flatMap[this.player.position] == MapCell.BombZone) {
             this.awayFromBom = true
             const spoilsPath = this.findEscapePath(); // Tìm đường thoát trong bán kính 5 ô
-            // console.log("----- -------RUN------ --------", spoilsPath)
             await this.socket.emit('drive player', { direction: spoilsPath });
             return
         }
@@ -190,7 +189,6 @@ class GameMap {
                     (isChild || enemy.hasTransform) // Nếu là _child hoặc có hasTransform
                 ) {
                     if (enemy.currentPosition.col !== undefined) {
-                        console.log("------------------------------------------------------------------")
                         this.parentSkill = false 
                         await this.socket.emit("action", {
                             action: "use weapon",
@@ -290,7 +288,7 @@ class GameMap {
         if (this.lastPosition === currentPosition) {
             const timeSinceLastMove = Date.now() - this.lastMoveTime;
 
-            if (timeSinceLastMove > 4000) { // Nếu đứng yên quá 7 giây
+            if (timeSinceLastMove > 7000) { // Nếu đứng yên quá 7 giây
                 this.awayFromBom = false;
                 this.hasPlacedBomb = false;
                 this.forceRandomMove();
