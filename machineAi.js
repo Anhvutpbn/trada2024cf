@@ -108,9 +108,12 @@ class GameMap {
         this.caculatorResetTime = 0;
     }
     async parseTicktack(res) {
-        const currentPlayer = res.map_info.players.find(p => this.playerId.includes(p.id));
-        const childPlayer = res.map_info.players.find(p => this.playerIdChill.includes(p.id));
-        if(!currentPlayer) {
+        const currentPlayer = res.map_info.players.find(p => this.playerId == p.id);
+        const childPlayer = res.map_info.players.find(p => this.playerIdChill == p.id);
+        if(currentPlayer && currentPlayer.hasTransform) {
+            this.isWaitingAtGodBadge == false
+        }
+        if(!currentPlayer || this.isWaitingAtGodBadge) {
             return
         }
         this.caculatorResetTime++
@@ -185,7 +188,7 @@ class GameMap {
             }
             
         }
-
+        console.log("bo gia")
         if(this.flatMap[this.player.position] == MapCell.BombZone) {
             this.awayFromBom = true
             const spoilsPath = this.findEscapePath(); // Tìm đường thoát trong bán kính 5 ô
@@ -255,12 +258,12 @@ class GameMap {
             // return;
         }
         
-        // if(!this.marry && this.player.playerInfo.eternalBadge > 0) {
-        //     this.socket.emit('action', {							
-        //         "action": "marry wife"						
-        //     })	
-        //     this.marry = true						
-        // }
+        if(!this.marry && this.player.playerInfo.eternalBadge > 0) {
+            this.socket.emit('action', {							
+                "action": "marry wife"						
+            })	
+            this.marry = true						
+        }
         
         // Nếu không trong vùng nguy hiểm, tiếp tục xử lý logic thông thường
         // console.log("Nếu không trong vùng nguy hiểm, tiếp tục xử lý logic thông thường", this.hasPlacedBomb)     
@@ -387,10 +390,10 @@ class GameMap {
         }
     
         const playerPosition = this.player.position;
-        // if (hasTransform === undefined) {
-        //     console.warn("Transform state is undefined. Skipping action.");
-        //     return;
-        // }
+        if (hasTransform === undefined) {
+            console.warn("Transform state is undefined. Skipping action.");
+            return;
+        }
         // console.warn("Nếu đã transformed, chỉ đặt bomb và tránh vùng nổ");
         // Nếu đã transformed, chỉ đặt bomb và tránh vùng nổ
         if (hasTransform) {
@@ -403,12 +406,18 @@ class GameMap {
     
             if (!this.hasPlacedBomb) {
                 const bombPosition = this.findOptimalBombPosition(playerPosition);
-                this.placeBombAndRetreat(bombPosition)
-            // } else {
-            //     console.log("Bomb is already placed. Waiting for next action.");
-            //     return;
+
+                if (bombPosition) {
+                    this.placeBombAndRetreat(bombPosition);
+                    return;
+                } else {
+                    // console.log("No optimal bomb position found. Waiting for next action.");
+                    return;
+                }
+            } else {
+                // console.log("Bomb is already placed. Waiting for next action.");
+                return;
             }
-            return 
         }
         // console.log("Ưu tiên đến GodBadge nếu chưa transformed");
         // Ưu tiên đến GodBadge nếu chưa transformed
@@ -417,9 +426,9 @@ class GameMap {
             const pathToBadge = this.findPath(playerPosition, closestGodBadge);
     
             if (pathToBadge && this.isPathValid(pathToBadge, playerPosition)) {
-                // console.log(`Moving to GodBadge at position: ${closestGodBadge}`);
+                // console.log(Moving to GodBadge at position: ${closestGodBadge});
                 this.currentTarget = closestGodBadge;
-                this.moveToAndWait(pathToBadge, 3500); // Đứng tại GodBadge trong 3 giây
+                this.moveToAndWait(pathToBadge, 3000); // Đứng tại GodBadge trong 3 giây
                 return;
             }
         }
@@ -429,7 +438,7 @@ class GameMap {
             const pathToBrick = this.findPath(playerPosition, closestBrickWall);
     
             if (pathToBrick && pathToBrick.length > 0) {
-                console.log(`Moving to destroy BrickWall at position: ${closestBrickWall}`);
+                // console.log(Moving to destroy BrickWall at position: ${closestBrickWall});
                 this.currentTarget = closestBrickWall;
                 this.moveToAndBreakProperly(pathToBrick, closestBrickWall);
                 return;
@@ -464,9 +473,8 @@ class GameMap {
 
     moveToAndBreakProperly(path, targetPos) {
         if (path.length > 0) {
-            this.isMoving = true;
             this.moveTo(path); // Di chuyển đến gần tường gạch
-            console.log("path.length", path.length)
+            console.log("path.length", path)
             // Sau khi di chuyển xong
             setTimeout(async () => {
                 this.isMoving = false;
@@ -902,7 +910,7 @@ class GameMap {
                 this.isMoving = false; // Reset trạng thái
                 // console.log("Arrived at destination.");
                 this.currentTarget = null; // Đặt lại mục tiêu
-                this.decideNextAction(); // Thực hiện hành động tiếp theo
+                // this.decideNextAction(); // Thực hiện hành động tiếp theo
             }, estimatedTime);
         } else {
             // console.log("No path to move. Resetting state.");

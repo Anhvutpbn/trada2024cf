@@ -98,7 +98,7 @@ class GameMapChild {
         const fatherPlayer = res.map_info.players.find(p => this.playerIdFather == p.id);
         this.caculatorResetTime++
         // console.log(res.map_info.players, currentPlayer, this.playerId)
-        console.log("CHILD....", this.caculatorResetTime)
+        console.log("CHILD....", currentPlayer)
         if(!currentPlayer) {
             return
         }
@@ -195,7 +195,8 @@ class GameMapChild {
                     if (enemy.currentPosition.col !== undefined) {
                         this.parentSkill = false 
                         await this.socket.emit("action", {
-                            action: "use weapon",
+                            action: "use weapon", 
+                            "characterType": "child" ,
                             payload: {
                                 destination: {
                                     col: enemy.currentPosition.col,
@@ -313,7 +314,7 @@ class GameMapChild {
     
         if (validNeighbors.length > 0) {
             const randomNeighbor = validNeighbors[Math.floor(Math.random() * validNeighbors.length)];
-            await this.emitDriver('drive player', { direction: randomNeighbor.dir });
+            await this.emitDriver('drive player', { direction: randomNeighbor.dir, "characterType": "child" });
         }
     }
     
@@ -357,98 +358,7 @@ class GameMapChild {
             return;
         }
     }
-    
-    
-    moveToAndWait(path, waitTime) {
-        if (path && path.length > 0) {
-            this.isMoving = true;
-            this.moveTo(path);
-    
-            setTimeout(() => {
-                this.isMoving = false;
-                this.isWaitingAtGodBadge = true;
-    
-                // Chờ 3 giây tại GodBadge
-                setTimeout(() => {
-                    this.isWaitingAtGodBadge = false;
-                    this.decideNextAction(); // Tiếp tục hành động tiếp theo
-                }, waitTime);
-            }, path.length * 500); // Thời gian di chuyển phụ thuộc vào độ dài path
-        } else {
-            this.isMoving = false;
-        }
-    }
-    
-    
-
-    moveToAndBreakProperly(path, targetPos) {
-        if (path.length > 0) {
-            this.isMoving = true;
-            this.moveTo(path); // Di chuyển đến gần tường gạch
-    
-            // Sau khi di chuyển xong
-            setTimeout(async () => {
-                this.isMoving = false;
-    
-                const playerPosition = this.player.position;
-                const directionToBrick = this.getDirectionToNeighbor(playerPosition, targetPos);
-    
-                if (directionToBrick) {
-                    await this.emitDriver('drive player', { direction: directionToBrick }); // Quay mặt vào tường
-    
-                    // setTimeout(() => {
-                        await this.emitDriver('drive player', { direction: "b" }); // Phá tường
-    
-                        // Cập nhật bản đồ sau khi phá tường
-                        this.updateMapAfterBreaking(targetPos);
-    
-                        // Kiểm tra và phá tiếp các tường xung quanh nếu có
-                        // setTimeout(() => {
-                            this.isBreaking = false;
-                            this.breakSurroundingBrickWalls(); // Kiểm tra và phá tiếp các tường xung quanh
-                        // }, 100);
-                    // }, 200); // Đợi sau khi quay mặt để phá tường
-                }
-            }, path.length * 30); // Thời gian chờ phụ thuộc vào độ dài đường đi
-        }
-    }
-    
-    breakSurroundingBrickWalls() {
-        const playerPosition = this.player.position;
-    
-        // Lấy danh sách các ô lân cận
-        const neighbors = this.getNeighborNodes(playerPosition);
-    
-        for (let neighbor of neighbors) {
-            const { pos, dir } = neighbor;
-            const cellValue = this.flatMap[pos];
-    
-            // Kiểm tra nếu ô lân cận là tường gạch
-            if (cellValue === MapCellChild.BrickWall) {
-                
-                // Quay mặt vào tường gạch
-                this.emitDriver('drive player', { direction: dir });
-    
-                setTimeout(() => {
-                    this.emitDriver('drive player', { direction: "b" }); // Phá tường
-    
-                    // Cập nhật bản đồ sau khi phá tường
-                    this.updateMapAfterBreaking(pos);
-    
-                    // Tiếp tục kiểm tra và phá các tường khác
-                    setTimeout(() => {
-                        this.breakSurroundingBrickWalls();
-                    }, 500);
-                }, 500);
-    
-                return; // Dừng vòng lặp để xử lý từng tường một
-            }
-        }
-    
-        this.decideNextAction(); // Tiếp tục hành động tiếp theo
-    }
-
-    
+        
 
     getDirectionToNeighbor(currentPos, targetPos) {
         const { x: currX, y: currY } = this.to2dPos(currentPos);
@@ -715,7 +625,7 @@ class GameMapChild {
         }
     
         if (path && path.length > 0) {
-            await this.socket.emit('drive player', { direction: path });
+            await this.socket.emit('drive player', { direction: path, "characterType": "child"  });
             this.awayFromBom = false;
             // setTimeout(() => {
                 
@@ -807,7 +717,7 @@ class GameMapChild {
         if (path && path.length > 0) {
             const pathString = path.join(""); // Chuyển path thành chuỗi
             // console.log(`Sending full path to driver: ${pathString}`);
-            await this.emitDriver('drive player', { direction: pathString }); // Gửi toàn bộ path
+            await this.emitDriver('drive player', { direction: pathString, "characterType": "child"  }); // Gửi toàn bộ path
             this.isMoving = true; // Đặt trạng thái đang di chuyển
     
             // Giả lập hoàn tất sau một thời gian tùy thuộc vào độ dài path

@@ -1,5 +1,5 @@
 import { GameMap } from './machineAi.js';
-const gameId = 'c7429f87-aaac-4119-bd4f-3600fafa0ebb';
+const gameId = '5668fc27-e564-4343-9744-daa11e094df8';
 let MAP = {};
 let BOMB = [];
 let SPOILS = [];
