@@ -201,7 +201,7 @@ class GameMap {
                         });
                         setTimeout(() => {
                             this.parentSkill = true 
-                        }, 1000);
+                        }, 10000);
                     }
                     // Dừng loop ngay khi tìm thấy enemy phù hợp
                     break;
