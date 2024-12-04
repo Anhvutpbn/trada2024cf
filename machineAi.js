@@ -45,6 +45,14 @@ class GamePlayer {
         this.position = gameMap.to1dPos(playerInfo.currentPosition.col, playerInfo.currentPosition.row);
         this.playerInfo = playerInfo;
     }
+
+    setPlayerInfo(playerInfo) {
+        this.playerInfo = playerInfo
+    }
+
+    setPosition(gameMap, playerInfo) {
+        this.position = gameMap.to1dPos(playerInfo.currentPosition.col, playerInfo.currentPosition.row);
+    }
 }
 
 class GameMap {
@@ -57,6 +65,7 @@ class GameMap {
         this.mapWidth = 26;
         this.mapHeight = 14;
         this.player = null;
+        this.childPlayerSing = null;
         this.bombs = []
         this.spoils = []
         this.bombsPosition = []
@@ -72,13 +81,11 @@ class GameMap {
          this.lastPosition = null; // Vị trí lần cuối
          this.awayFromBom = false;
          this.caculatorResetTime = 0;
+         this.marry = false
 
          // kiểm tra việc sử dụng vũ khí thần
          this.parentSkill = true
          this.childSkill = true
-
-         // khai bao child
-         this.child = null
     }
     reset() {
         // Đặt lại tất cả các biến về giá trị mặc định
@@ -102,15 +109,18 @@ class GameMap {
     }
     async parseTicktack(res) {
         const currentPlayer = res.map_info.players.find(p => this.playerId.includes(p.id));
-        const childPlayer = res.map_info.players.find(p => this.playerIdChill === p.id);
+        const childPlayer = res.map_info.players.find(p => this.playerIdChill.includes(p.id));
+        if(!currentPlayer) {
+            return
+        }
         this.caculatorResetTime++
-        // console.log("this.caculatorResetTime....", this.caculatorResetTime)
+        console.log("this.caculatorResetTime....", this.caculatorResetTime)
 
         this.map = res.map_info.map;
 
         const enemies = res.map_info.players.filter(
             p => p.id !== this.playerId && p.id !== this.playerIdChill
-          );
+        );
           
         if (enemies.length > 0) {
             enemies.forEach(enemy => {
@@ -147,14 +157,17 @@ class GameMap {
         this.mapHeight = res.map_info.size.rows;
         this.spoils = res.map_info.spoils;
         
-        this.player = new GamePlayer(this, currentPlayer);
-        if(childPlayer && !this.childPlayer) {
-            this.childPlayer = new GameMapChild()
+        if(this.player) {
+            this.player.setPlayerInfo(currentPlayer)
+            this.player.setPosition(this, currentPlayer)
+        } else {
+            this.player = new GamePlayer(this, currentPlayer);
         }
+        
         this.bombsPosition = []
         const hasTransform = this.player.playerInfo.hasTransform;
         this.bombs = res.map_info.bombs.filter(bomb => bomb.playerId === this.player.playerInfo.id);
-
+    
         // Lặp qua tất cả các bomb trên bản đồ và tính toán vùng ảnh hưởng
         await res.map_info.bombs.forEach(bomb => {
             const bombPosition = this.to1dPos(bomb.col, bomb.row);
@@ -162,6 +175,17 @@ class GameMap {
             this.replaceBombImpactWithSpecialZone(bombPosition)
         });
         
+        // Dieu khien thang em: : : : : : :
+        if(this.marry && childPlayer) {
+            if(this.childPlayerSing) {
+                this.childPlayerSing.parseTicktack(res)
+            } else {
+                this.childPlayerSing = new GameMapChild(this.socket, this.playerIdChill)
+                this.childPlayerSing.parseTicktack(res)
+            }
+            
+        }
+
         if(this.flatMap[this.player.position] == MapCell.BombZone) {
             this.awayFromBom = true
             const spoilsPath = this.findEscapePath(); // Tìm đường thoát trong bán kính 5 ô
@@ -208,7 +232,7 @@ class GameMap {
                         });
                         setTimeout(() => {
                             this.parentSkill = true 
-                        }, 10000);
+                        }, 1000);
                     }
                     // Dừng loop ngay khi tìm thấy enemy phù hợp
                     break;
@@ -224,12 +248,20 @@ class GameMap {
             const spoilsPath = this.getItem(); // Tìm Spoils trong bán kính 5 ô
                 if (spoilsPath) {
                     this.socket.emit('drive player', { direction: spoilsPath });
+                    return
                 } else {
                     // return this.decideNextAction(hasTransform);
                 }
             // return;
         }
-    
+        
+        if(!this.marry && this.player.playerInfo.eternalBadge > 0) {
+            this.socket.emit('action', {							
+                "action": "marry wife"						
+            })	
+            this.marry = true						
+        }
+        
         // Nếu không trong vùng nguy hiểm, tiếp tục xử lý logic thông thường
         // console.log("Nếu không trong vùng nguy hiểm, tiếp tục xử lý logic thông thường", this.hasPlacedBomb)     
         return this.decideNextAction(hasTransform);
@@ -369,20 +401,21 @@ class GameMap {
                 return;
             }
     
-            if (!this.hasPlacedBomb) {
+            // if (!this.hasPlacedBomb) {
                 const bombPosition = this.findOptimalBombPosition(playerPosition);
 
                 if (bombPosition) {
                     this.placeBombAndRetreat(bombPosition);
                     return;
-                } else {
-                    // console.log("No optimal bomb position found. Waiting for next action.");
-                    return;
-                }
-            } else {
-                // console.log("Bomb is already placed. Waiting for next action.");
-                return;
-            }
+                } 
+            //     else {
+            //         console.log("No optimal bomb position found. Waiting for next action.");
+            //         return;
+            //     }
+            // } else {
+            //     console.log("Bomb is already placed. Waiting for next action.");
+            //     return;
+            // }
         }
         // console.log("Ưu tiên đến GodBadge nếu chưa transformed");
         // Ưu tiên đến GodBadge nếu chưa transformed
@@ -714,7 +747,7 @@ class GameMap {
         }
     
         // Nếu không tìm thấy đường đi
-        // console.log("No valid path found.");
+        console.log("No valid path found.");
         return null;
     }
     
@@ -1304,4 +1337,4 @@ class GameMap {
     
 }
 
-export {GameMap };
+export { MapCell, MoveDirection, TreeNode, GamePlayer, GameMap };

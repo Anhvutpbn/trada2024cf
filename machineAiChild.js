@@ -19,16 +19,7 @@ const MoveDirectionChild = {
     DOWN: "4",  // Di chuyển xuống dưới
 };
 
-const START_GAME = "start-game"
-const UPDATE_GAME = "update-data"
-const MOVING_BANNED = "player:moving-banned"
-const START_MOVING = "player:start-moving"
-const STOP_MOVING = "player:stop-moving"
-const BE_ISOLATED = "player:be-isolated"
-const BTPG = "player:back-to-playground"
-const BOMB_EXPLODED = "bomb:exploded"
-const STUN = "player:stun-by-weapon"
-const EMIT_COUNT_DOWN = 300;
+
 class TreeNodeChild {
     constructor(val, dir = null, parent = null) {
         this.val = val;
@@ -44,13 +35,21 @@ class GamePlayerChild {
         this.position = gameMap.to1dPos(playerInfo.currentPosition.col, playerInfo.currentPosition.row);
         this.playerInfo = playerInfo;
     }
+    
+    setPlayerInfo(playerInfo) {
+        this.playerInfo = playerInfo
+    }
+
+    setPosition(gameMap, playerInfo) {
+        this.position = gameMap.to1dPos(playerInfo.currentPosition.col, playerInfo.currentPosition.row);
+    }
 }
 
 class GameMapChild {
     constructor(socket, playerId) {
         this.socket = socket;
-        this.playerId = playerId;
-        this.playerIdChill = playerId+"_child";
+        this.playerId = playerId+"_child";
+        this.playerIdFather = playerId;
         this.map = [];
         this.flatMap = [];
         this.mapWidth = 26;
@@ -80,8 +79,6 @@ class GameMapChild {
         // Đặt lại tất cả các biến về giá trị mặc định
         this.map = [];
         this.flatMap = [];
-        this.mapWidth = 26;
-        this.mapHeight = 14;
         this.player = null;
         this.bombs = [];
         this.spoils = [];
@@ -104,9 +101,11 @@ class GameMapChild {
         this.map = res.map_info.map;
 
         const enemies = res.map_info.players.filter(
-            p => p.id !== this.playerId && p.id !== this.playerIdChill
-          );
-          
+            p => p.id !== this.playerId && p.id !== this.playerIdFather
+        );
+
+        const fatherPosition = res.map_info.players.filter(p.id == this.playerIdFather);
+
         if (enemies.length > 0) {
             enemies.forEach(enemy => {
                 if (enemy !== undefined && enemy.currentPosition !== undefined && enemy.currentPosition.col !== undefined) {
@@ -114,15 +113,16 @@ class GameMapChild {
                 }
             });
         }
-        
-        const nonChildEnemies = enemies.filter(enemy => !enemy.id.endsWith('_child'));
-        nonChildEnemies.forEach(enemy => {
-            if (!enemy.hasTransform) {
-                if (enemy.currentPosition.col !== undefined) {
-                    this.map[enemy.currentPosition.row][enemy.currentPosition.col] = MapCellChild.Border;
+
+        if(fatherPosition) {
+            fatherPosition.forEach(enemy => {
+                if (!enemy.hasTransform) {
+                    if (enemy.currentPosition.col !== undefined) {
+                        this.map[enemy.currentPosition.row][enemy.currentPosition.col] = MapCellChild.Border;
+                    }
                 }
-            }
-        });
+            });
+        }
 
         this.replaceValuesInRadius(
             currentPlayer.currentPosition.row, 
@@ -131,8 +131,8 @@ class GameMapChild {
             MapCellChild.SpecialZone, 
             MapCellChild.Road
         )
+
         // check vij trí búa
-        
         if(res.map_info.weaponHammers.length > 0) {
             this.updateMapWithICBM(res.map_info.weaponHammers, MapCellChild.BombZone)
         }
@@ -142,7 +142,12 @@ class GameMapChild {
         this.mapHeight = res.map_info.size.rows;
         this.spoils = res.map_info.spoils;
         
-        this.player = new GamePlayer(this, currentPlayer);
+        if(this.player) {
+            this.player.setPlayerInfo(currentPlayer)
+            this.player.setPosition(this, currentPlayer)
+        } else {
+            this.player = new GamePlayerChild(this, currentPlayer);
+        }
 
         this.bombsPosition = []
         const hasTransform = this.player.playerInfo.hasTransform;
@@ -158,7 +163,7 @@ class GameMapChild {
         if(this.flatMap[this.player.position] == MapCellChild.BombZone) {
             this.awayFromBom = true
             const spoilsPath = this.findEscapePath(); // Tìm đường thoát trong bán kính 5 ô
-            await this.socket.emit('drive player', { direction: spoilsPath });
+            await this.socket.emit('drive player', { direction: spoilsPath, "characterType": "child" });
             return
         }
 
@@ -210,13 +215,13 @@ class GameMapChild {
         }
 
         if(this.playerStopNearbyBomb()) {
-            await this.emitDriver('drive player', { direction: 'x' });
+            await this.emitDriver('drive player', { direction: 'x', "characterType": "child" });
         }
         // Picking Item TODO
         if (this.bombs.length == 0  && hasTransform && !this.isWaitingAtGodBadge) {
             const spoilsPath = this.getItem(); // Tìm Spoils trong bán kính 5 ô
                 if (spoilsPath) {
-                    this.socket.emit('drive player', { direction: spoilsPath });
+                    this.socket.emit('drive player', { direction: spoilsPath, "characterType": "child" });
                 } else {
                     // return this.decideNextAction(hasTransform);
                 }
@@ -352,16 +357,8 @@ class GameMapChild {
             console.warn("Transform state is undefined. Skipping action.");
             return;
         }
-        // console.warn("Nếu đã transformed, chỉ đặt bomb và tránh vùng nổ");
         // Nếu đã transformed, chỉ đặt bomb và tránh vùng nổ
         if (hasTransform) {
-    
-            if (this.player.playerInfo.currentWeapon !== 2) {
-                this.socket.emit('action', { action: "switch weapon" });
-                this.player.playerInfo.currentWeapon = 2; // Cập nhật trạng thái weapon
-                return;
-            }
-    
             if (!this.hasPlacedBomb) {
                 const bombPosition = this.findOptimalBombPosition(playerPosition);
 
@@ -377,33 +374,6 @@ class GameMapChild {
                 return;
             }
         }
-        // console.log("Ưu tiên đến GodBadge nếu chưa transformed");
-        // Ưu tiên đến GodBadge nếu chưa transformed
-        const closestGodBadge = this.findClosestCell(playerPosition, MapCellChild.GodBadge);
-        if (closestGodBadge !== null && this.currentTarget !== closestGodBadge) {
-            const pathToBadge = this.findPath(playerPosition, closestGodBadge);
-    
-            if (pathToBadge && this.isPathValid(pathToBadge, playerPosition)) {
-                // console.log(`Moving to GodBadge at position: ${closestGodBadge}`);
-                this.currentTarget = closestGodBadge;
-                this.moveToAndWait(pathToBadge, 3000); // Đứng tại GodBadge trong 3 giây
-                return;
-            }
-        }
-        // Nếu không có GodBadge hoặc đã biến hình, tìm tường gạch gần nhất
-        const closestBrickWall = this.findClosestCell(playerPosition, MapCellChild.BrickWall);
-        if (closestBrickWall !== null && this.currentTarget !== closestBrickWall) {
-            const pathToBrick = this.findPath(playerPosition, closestBrickWall);
-    
-            if (pathToBrick && pathToBrick.length > 0) {
-                // console.log(`Moving to destroy BrickWall at position: ${closestBrickWall}`);
-                this.currentTarget = closestBrickWall;
-                this.moveToAndBreakProperly(pathToBrick, closestBrickWall);
-                return;
-            }
-        }
-    
-        this.currentTarget = null;
     }
     
     

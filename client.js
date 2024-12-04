@@ -1,5 +1,5 @@
 import { GameMap } from './machineAi.js';
-const gameId = 'd57b2cd5-a32b-4fc0-9b21-5928697c2291';
+const gameId = '5320700e-382f-4fc8-b736-19c3e7d3fa8c';
 let MAP = {};
 let BOMB = [];
 let SPOILS = [];
@@ -9,7 +9,7 @@ let players;
 
 // client.js
 import { connect } from 'socket.io-client';
-const apiServer = 'http://localhost';
+const apiServer = 'http://192.168.1.87';
 const socket = connect(apiServer, {reconnect: true, transports: ['websocket']});
 const playerId = 'player1-xxx';
 const optionJoin = {game_id: gameId, player_id: "player1-xxx"}
