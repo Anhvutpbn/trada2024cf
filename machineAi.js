@@ -167,7 +167,7 @@ class GameMap {
         this.bombsPosition = []
         const hasTransform = this.player.playerInfo.hasTransform;
         this.bombs = res.map_info.bombs.filter(bomb => bomb.playerId === this.player.playerInfo.id);
-    
+
         // Lặp qua tất cả các bomb trên bản đồ và tính toán vùng ảnh hưởng
         await res.map_info.bombs.forEach(bomb => {
             const bombPosition = this.to1dPos(bomb.col, bomb.row);
@@ -180,7 +180,7 @@ class GameMap {
             if(this.childPlayerSing) {
                 this.childPlayerSing.parseTicktack(res)
             } else {
-                this.childPlayerSing = new GameMapChild(this.socket, this.playerIdChill)
+                this.childPlayerSing = new GameMapChild(this.socket, this.playerId)
                 this.childPlayerSing.parseTicktack(res)
             }
             
@@ -193,9 +193,9 @@ class GameMap {
             return
         }
 
-        if (hasTransform === undefined) {
-            console.warn("Transform state is undefined. Skipping action.");
-            return;
+        if(res.player_id == this.playerId && res.tag == BOMB_EXPLODED) {
+            console.log(res.tag)
+            this.hasPlacedBomb = false
         }
         
         this.replaceSpoilsToMapValue()
@@ -255,12 +255,12 @@ class GameMap {
             // return;
         }
         
-        if(!this.marry && this.player.playerInfo.eternalBadge > 0) {
-            this.socket.emit('action', {							
-                "action": "marry wife"						
-            })	
-            this.marry = true						
-        }
+        // if(!this.marry && this.player.playerInfo.eternalBadge > 0) {
+        //     this.socket.emit('action', {							
+        //         "action": "marry wife"						
+        //     })	
+        //     this.marry = true						
+        // }
         
         // Nếu không trong vùng nguy hiểm, tiếp tục xử lý logic thông thường
         // console.log("Nếu không trong vùng nguy hiểm, tiếp tục xử lý logic thông thường", this.hasPlacedBomb)     
@@ -387,10 +387,10 @@ class GameMap {
         }
     
         const playerPosition = this.player.position;
-        if (hasTransform === undefined) {
-            console.warn("Transform state is undefined. Skipping action.");
-            return;
-        }
+        // if (hasTransform === undefined) {
+        //     console.warn("Transform state is undefined. Skipping action.");
+        //     return;
+        // }
         // console.warn("Nếu đã transformed, chỉ đặt bomb và tránh vùng nổ");
         // Nếu đã transformed, chỉ đặt bomb và tránh vùng nổ
         if (hasTransform) {
@@ -401,21 +401,14 @@ class GameMap {
                 return;
             }
     
-            // if (!this.hasPlacedBomb) {
+            if (!this.hasPlacedBomb) {
                 const bombPosition = this.findOptimalBombPosition(playerPosition);
-
-                if (bombPosition) {
-                    this.placeBombAndRetreat(bombPosition);
-                    return;
-                } 
-            //     else {
-            //         console.log("No optimal bomb position found. Waiting for next action.");
-            //         return;
-            //     }
+                this.placeBombAndRetreat(bombPosition)
             // } else {
             //     console.log("Bomb is already placed. Waiting for next action.");
             //     return;
-            // }
+            }
+            return 
         }
         // console.log("Ưu tiên đến GodBadge nếu chưa transformed");
         // Ưu tiên đến GodBadge nếu chưa transformed
@@ -426,7 +419,7 @@ class GameMap {
             if (pathToBadge && this.isPathValid(pathToBadge, playerPosition)) {
                 // console.log(`Moving to GodBadge at position: ${closestGodBadge}`);
                 this.currentTarget = closestGodBadge;
-                this.moveToAndWait(pathToBadge, 3000); // Đứng tại GodBadge trong 3 giây
+                this.moveToAndWait(pathToBadge, 3500); // Đứng tại GodBadge trong 3 giây
                 return;
             }
         }
@@ -436,7 +429,7 @@ class GameMap {
             const pathToBrick = this.findPath(playerPosition, closestBrickWall);
     
             if (pathToBrick && pathToBrick.length > 0) {
-                // console.log(`Moving to destroy BrickWall at position: ${closestBrickWall}`);
+                console.log(`Moving to destroy BrickWall at position: ${closestBrickWall}`);
                 this.currentTarget = closestBrickWall;
                 this.moveToAndBreakProperly(pathToBrick, closestBrickWall);
                 return;
@@ -473,7 +466,7 @@ class GameMap {
         if (path.length > 0) {
             this.isMoving = true;
             this.moveTo(path); // Di chuyển đến gần tường gạch
-    
+            console.log("path.length", path.length)
             // Sau khi di chuyển xong
             setTimeout(async () => {
                 this.isMoving = false;
@@ -489,13 +482,10 @@ class GameMap {
     
                         // Cập nhật bản đồ sau khi phá tường
                         this.updateMapAfterBreaking(targetPos);
-    
-                        // Kiểm tra và phá tiếp các tường xung quanh nếu có
-                        // setTimeout(() => {
+
                             this.isBreaking = false;
-                            this.breakSurroundingBrickWalls(); // Kiểm tra và phá tiếp các tường xung quanh
-                        // }, 100);
-                    // }, 200); // Đợi sau khi quay mặt để phá tường
+                            this.breakSurroundingBrickWalls();
+
                 }
             }, path.length * 30); // Thời gian chờ phụ thuộc vào độ dài đường đi
         }
@@ -526,8 +516,8 @@ class GameMap {
                     // Tiếp tục kiểm tra và phá các tường khác
                     setTimeout(() => {
                         this.breakSurroundingBrickWalls();
-                    }, 500);
-                }, 500);
+                    }, 100);
+                }, 100);
     
                 return; // Dừng vòng lặp để xử lý từng tường một
             }
@@ -674,7 +664,6 @@ class GameMap {
 
     // Hàm tìm vị trí đặt bomb
     findOptimalBombPosition(position) {
-        // this.printMap2D()
         if (!this.mapWidth || typeof this.mapWidth !== "number" || this.mapWidth <= 0) {
             console.error("Error: Invalid or undefined mapWidth");
             return null;
@@ -713,11 +702,13 @@ class GameMap {
     
             // Chuyển tọa độ 2D (row, col) thành index phẳng
             const flatIndex = row * this.mapWidth + col;
-
-            // Nếu tìm thấy Balk (ô giá trị 2), trả về đường đi
+    
+            // Nếu tìm thấy Balk (ô giá trị 2)
             if (this.flatMap[flatIndex] === MapCell.Balk) {
-                // console.log(`Found Balk at row=${row}, col=${col}`);
-                return path;
+                if (path.length > 1) {
+                    return path.slice(0, -1); // Loại bỏ bước cuối cùng và thêm "b"
+                }
+                return null; // Nếu chỉ có một bước hoặc không có, trả về "b"
             }
     
             // Thử tất cả hướng di chuyển
@@ -750,6 +741,8 @@ class GameMap {
         console.log("No valid path found.");
         return null;
     }
+    
+    
     
     // Hàm tính số lượng hộp bị phá hủy bởi bomb
     calculateBombImpact(position) {
@@ -789,6 +782,10 @@ class GameMap {
         const hasBalk = neighbors.some(({ pos }) => this.flatMap[pos] === MapCell.Balk);
         if(bombPosition) {
             // this.socket.emit('drive player', { direction: bombPosition+"b" });
+            //  setTimeout(() => {
+                
+            //     console.warn("No valid path for force move.", path);
+            // }, 200);
             await this.emitDriver('drive player', { direction: bombPosition });
              // Ước lượng thời gian di chuyển
         }

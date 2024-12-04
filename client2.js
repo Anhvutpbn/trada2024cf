@@ -1,8 +1,8 @@
 import readline from 'readline';
 import { io } from 'socket.io-client';
-import {MapCell, MoveDirection, TreeNode, GamePlayer, GameMap } from './machineAi.js';
+import { GameMap } from './machineAi.js';
 // Kết nối tới server
-const gameId = '5320700e-382f-4fc8-b736-19c3e7d3fa8c';
+const gameId = 'c7429f87-aaac-4119-bd4f-3600fafa0ebb';
 const apiServer = 'http://192.168.1.87'; // Đổi thành URL server của bạn
 const socket = io(apiServer, { reconnect: true, transports: ['websocket'] });
 
