@@ -1,6 +1,5 @@
-import { GameMapChild } from './machineAiChild.js';
 // Constants for Map Cells
-const MapCell = {
+const MapCellChild = {
     Road: 0,           // Ô trống (Người chơi có thể đi qua)
     Border: 1,         // Ranh giới Map (Không thể phá hủy)
     Balk: 2,           // Chướng ngại vật (Phá hủy được)
@@ -13,7 +12,7 @@ const MapCell = {
 };
 
 
-const MoveDirection = {
+const MoveDirectionChild = {
     LEFT: "1",  // Di chuyển sang trái
     RIGHT: "2", // Di chuyển sang phải
     UP: "3",    // Di chuyển lên trên
@@ -30,7 +29,7 @@ const BTPG = "player:back-to-playground"
 const BOMB_EXPLODED = "bomb:exploded"
 const STUN = "player:stun-by-weapon"
 const EMIT_COUNT_DOWN = 300;
-class TreeNode {
+class TreeNodeChild {
     constructor(val, dir = null, parent = null) {
         this.val = val;
         this.dir = dir;
@@ -40,14 +39,14 @@ class TreeNode {
     }
 }
 
-class GamePlayer {
+class GamePlayerChild {
     constructor(gameMap, playerInfo) {
         this.position = gameMap.to1dPos(playerInfo.currentPosition.col, playerInfo.currentPosition.row);
         this.playerInfo = playerInfo;
     }
 }
 
-class GameMap {
+class GameMapChild {
     constructor(socket, playerId) {
         this.socket = socket;
         this.playerId = playerId;
@@ -76,9 +75,6 @@ class GameMap {
          // kiểm tra việc sử dụng vũ khí thần
          this.parentSkill = true
          this.childSkill = true
-
-         // khai bao child
-         this.child = null
     }
     reset() {
         // Đặt lại tất cả các biến về giá trị mặc định
@@ -102,7 +98,6 @@ class GameMap {
     }
     async parseTicktack(res) {
         const currentPlayer = res.map_info.players.find(p => this.playerId.includes(p.id));
-        const childPlayer = res.map_info.players.find(p => this.playerIdChill === p.id);
         this.caculatorResetTime++
         // console.log("this.caculatorResetTime....", this.caculatorResetTime)
 
@@ -115,7 +110,7 @@ class GameMap {
         if (enemies.length > 0) {
             enemies.forEach(enemy => {
                 if (enemy !== undefined && enemy.currentPosition !== undefined && enemy.currentPosition.col !== undefined) {
-                    this.map[enemy.currentPosition.row][enemy.currentPosition.col] = MapCell.Balk;
+                    this.map[enemy.currentPosition.row][enemy.currentPosition.col] = MapCellChild.Balk;
                 }
             });
         }
@@ -124,7 +119,7 @@ class GameMap {
         nonChildEnemies.forEach(enemy => {
             if (!enemy.hasTransform) {
                 if (enemy.currentPosition.col !== undefined) {
-                    this.map[enemy.currentPosition.row][enemy.currentPosition.col] = MapCell.Border;
+                    this.map[enemy.currentPosition.row][enemy.currentPosition.col] = MapCellChild.Border;
                 }
             }
         });
@@ -133,13 +128,13 @@ class GameMap {
             currentPlayer.currentPosition.row, 
             currentPlayer.currentPosition.col,
             10, 
-            MapCell.SpecialZone, 
-            MapCell.Road
+            MapCellChild.SpecialZone, 
+            MapCellChild.Road
         )
         // check vij trí búa
         
         if(res.map_info.weaponHammers.length > 0) {
-            this.updateMapWithICBM(res.map_info.weaponHammers, MapCell.BombZone)
+            this.updateMapWithICBM(res.map_info.weaponHammers, MapCellChild.BombZone)
         }
         
         this.flatMap = this.map.flat();
@@ -148,13 +143,11 @@ class GameMap {
         this.spoils = res.map_info.spoils;
         
         this.player = new GamePlayer(this, currentPlayer);
-        if(childPlayer && !this.childPlayer) {
-            this.childPlayer = new GameMapChild()
-        }
+
         this.bombsPosition = []
         const hasTransform = this.player.playerInfo.hasTransform;
         this.bombs = res.map_info.bombs.filter(bomb => bomb.playerId === this.player.playerInfo.id);
-
+    
         // Lặp qua tất cả các bomb trên bản đồ và tính toán vùng ảnh hưởng
         await res.map_info.bombs.forEach(bomb => {
             const bombPosition = this.to1dPos(bomb.col, bomb.row);
@@ -162,7 +155,7 @@ class GameMap {
             this.replaceBombImpactWithSpecialZone(bombPosition)
         });
         
-        if(this.flatMap[this.player.position] == MapCell.BombZone) {
+        if(this.flatMap[this.player.position] == MapCellChild.BombZone) {
             this.awayFromBom = true
             const spoilsPath = this.findEscapePath(); // Tìm đường thoát trong bán kính 5 ô
             await this.socket.emit('drive player', { direction: spoilsPath });
@@ -238,8 +231,8 @@ class GameMap {
     replaceBombImpactWithSpecialZone(bombPosition) {
         const bombImpactArea = this.getBombImpactArea(bombPosition);
         bombImpactArea.forEach(position => {
-            if (this.flatMap[position] !== MapCell.Border) {
-                this.flatMap[position] = MapCell.BombZone; // Thay thế bằng số 77
+            if (this.flatMap[position] !== MapCellChild.Border) {
+                this.flatMap[position] = MapCellChild.BombZone; // Thay thế bằng số 77
             }
         });
     }
@@ -261,7 +254,7 @@ class GameMap {
     
             // Kiểm tra chỉ số hợp lệ trước khi thay thế
             if (index >= 0 && index < this.flatMap.length) {
-                this.flatMap[index] = MapCell.Spoils; // Gán giá trị 99
+                this.flatMap[index] = MapCellChild.Spoils; // Gán giá trị 99
             }
         });
     }
@@ -312,7 +305,7 @@ class GameMap {
     
         // Chọn ngẫu nhiên một ô lân cận có thể di chuyển
         const validNeighbors = neighbors.filter(({ pos }) => 
-            this.flatMap[pos] === MapCell.Road || this.flatMap[pos] === MapCell.Spoils // Thêm MapCell.Spoils
+            this.flatMap[pos] === MapCellChild.Road || this.flatMap[pos] === MapCellChild.Spoils // Thêm MapCellChild.Spoils
         );
     
         if (validNeighbors.length > 0) {
@@ -338,7 +331,7 @@ class GameMap {
         const neighbors = this.getNeighborNodes(position);
         for (let neighbor of neighbors) {
             const cellValue = this.flatMap[neighbor.pos];
-            if (cellValue === MapCell.BrickWall || cellValue === MapCell.Player) {
+            if (cellValue === MapCellChild.BrickWall || cellValue === MapCellChild.Player) {
                 return true; // Có tường gạch hoặc player xung quanh
             }
         }
@@ -346,7 +339,7 @@ class GameMap {
     }
 
     updateMapAfterBreaking(targetPos) {
-        this.flatMap[targetPos] = MapCell.Road; // Biến tường gạch thành đường trống
+        this.flatMap[targetPos] = MapCellChild.Road; // Biến tường gạch thành đường trống
     }
 
     decideNextAction(hasTransform) {
@@ -386,7 +379,7 @@ class GameMap {
         }
         // console.log("Ưu tiên đến GodBadge nếu chưa transformed");
         // Ưu tiên đến GodBadge nếu chưa transformed
-        const closestGodBadge = this.findClosestCell(playerPosition, MapCell.GodBadge);
+        const closestGodBadge = this.findClosestCell(playerPosition, MapCellChild.GodBadge);
         if (closestGodBadge !== null && this.currentTarget !== closestGodBadge) {
             const pathToBadge = this.findPath(playerPosition, closestGodBadge);
     
@@ -398,7 +391,7 @@ class GameMap {
             }
         }
         // Nếu không có GodBadge hoặc đã biến hình, tìm tường gạch gần nhất
-        const closestBrickWall = this.findClosestCell(playerPosition, MapCell.BrickWall);
+        const closestBrickWall = this.findClosestCell(playerPosition, MapCellChild.BrickWall);
         if (closestBrickWall !== null && this.currentTarget !== closestBrickWall) {
             const pathToBrick = this.findPath(playerPosition, closestBrickWall);
     
@@ -479,7 +472,7 @@ class GameMap {
             const cellValue = this.flatMap[pos];
     
             // Kiểm tra nếu ô lân cận là tường gạch
-            if (cellValue === MapCell.BrickWall) {
+            if (cellValue === MapCellChild.BrickWall) {
                 
                 // Quay mặt vào tường gạch
                 this.emitDriver('drive player', { direction: dir });
@@ -509,10 +502,10 @@ class GameMap {
         const { x: currX, y: currY } = this.to2dPos(currentPos);
         const { x: targetX, y: targetY } = this.to2dPos(targetPos);
     
-        if (currX === targetX && currY - 1 === targetY) return MoveDirection.UP;    // Target ở trên
-        if (currX === targetX && currY + 1 === targetY) return MoveDirection.DOWN;  // Target ở dưới
-        if (currX - 1 === targetX && currY === targetY) return MoveDirection.LEFT;  // Target ở trái
-        if (currX + 1 === targetX && currY === targetY) return MoveDirection.RIGHT; // Target ở phải
+        if (currX === targetX && currY - 1 === targetY) return MoveDirectionChild.UP;    // Target ở trên
+        if (currX === targetX && currY + 1 === targetY) return MoveDirectionChild.DOWN;  // Target ở dưới
+        if (currX - 1 === targetX && currY === targetY) return MoveDirectionChild.LEFT;  // Target ở trái
+        if (currX + 1 === targetX && currY === targetY) return MoveDirectionChild.RIGHT; // Target ở phải
     
         return null; // Không phải ô lân cận
     }
@@ -543,7 +536,7 @@ class GameMap {
     }
 
     findPath(startPos, targetPos) {
-        const startNode = new TreeNode(startPos);
+        const startNode = new TreeNodeChild(startPos);
         const resultNode = this.scanRawMap(startNode, this.flatMap, (currentNode) => {
             if (currentNode.val === targetPos) {
                 return [currentNode, false];
@@ -569,14 +562,14 @@ class GameMap {
         for (const step of path) {
             // Tính vị trí tiếp theo dựa trên bước đi
             const { x, y } = this.to2dPos(currentPos);
-            if (step === MoveDirection.UP) currentPos = this.to1dPos(x, y - 1);
-            if (step === MoveDirection.DOWN) currentPos = this.to1dPos(x, y + 1);
-            if (step === MoveDirection.LEFT) currentPos = this.to1dPos(x - 1, y);
-            if (step === MoveDirection.RIGHT) currentPos = this.to1dPos(x + 1, y);
+            if (step === MoveDirectionChild.UP) currentPos = this.to1dPos(x, y - 1);
+            if (step === MoveDirectionChild.DOWN) currentPos = this.to1dPos(x, y + 1);
+            if (step === MoveDirectionChild.LEFT) currentPos = this.to1dPos(x - 1, y);
+            if (step === MoveDirectionChild.RIGHT) currentPos = this.to1dPos(x + 1, y);
     
             // Kiểm tra nếu ô không hợp lệ
             const cellValue = this.flatMap[currentPos];
-            if (cellValue !== MapCell.Spoils && cellValue !== MapCell.Road && cellValue !== MapCell.GodBadge) {
+            if (cellValue !== MapCellChild.Spoils && cellValue !== MapCellChild.Road && cellValue !== MapCellChild.GodBadge) {
                 // console.log(`Invalid cell found at position ${currentPos}: ${cellValue}`);
                 return false;
             }
@@ -589,10 +582,10 @@ class GameMap {
         const cols = this.mapWidth;
 
         return [
-            { pos: val - cols, dir: MoveDirection.UP },
-            { pos: val + cols, dir: MoveDirection.DOWN },
-            { pos: val - 1, dir: MoveDirection.LEFT },
-            { pos: val + 1, dir: MoveDirection.RIGHT },
+            { pos: val - cols, dir: MoveDirectionChild.UP },
+            { pos: val + cols, dir: MoveDirectionChild.DOWN },
+            { pos: val - 1, dir: MoveDirectionChild.LEFT },
+            { pos: val + 1, dir: MoveDirectionChild.RIGHT },
         ].filter(neighbor => {
             const { pos } = neighbor;
             return pos >= 0 && pos < this.flatMap.length;
@@ -618,14 +611,14 @@ class GameMap {
                 const cellValue = map[pos];
 
                 if (
-                    cellValue === MapCell.Spoils ||
-                    cellValue === MapCell.Road ||
-                    cellValue === MapCell.BrickWall ||
-                    cellValue === MapCell.GodBadge
+                    cellValue === MapCellChild.Spoils ||
+                    cellValue === MapCellChild.Road ||
+                    cellValue === MapCellChild.BrickWall ||
+                    cellValue === MapCellChild.GodBadge
                 ) {
                     if (!visited.has(pos)) {
                         visited.add(pos);
-                        const neighborNode = new TreeNode(pos, dir, currentNode);
+                        const neighborNode = new TreeNodeChild(pos, dir, currentNode);
                         currentNode.children.push(neighborNode);
                         queue.push(neighborNode);
                     }
@@ -658,12 +651,12 @@ class GameMap {
         const startRow = Math.floor(position / this.mapWidth);
         const startCol = position % this.mapWidth;
     
-        // Tọa độ di chuyển tương ứng với MoveDirection
+        // Tọa độ di chuyển tương ứng với MoveDirectionChild
         const directions = [
-            { dr: 0, dc: -1, move: MoveDirection.LEFT },  // Trái
-            { dr: 0, dc: 1, move: MoveDirection.RIGHT }, // Phải
-            { dr: -1, dc: 0, move: MoveDirection.UP },   // Lên
-            { dr: 1, dc: 0, move: MoveDirection.DOWN },  // Xuống
+            { dr: 0, dc: -1, move: MoveDirectionChild.LEFT },  // Trái
+            { dr: 0, dc: 1, move: MoveDirectionChild.RIGHT }, // Phải
+            { dr: -1, dc: 0, move: MoveDirectionChild.UP },   // Lên
+            { dr: 1, dc: 0, move: MoveDirectionChild.DOWN },  // Xuống
         ];
     
         // BFS: Hàng đợi chứa các trạng thái {row, col, path}
@@ -682,7 +675,7 @@ class GameMap {
             const flatIndex = row * this.mapWidth + col;
 
             // Nếu tìm thấy Balk (ô giá trị 2), trả về đường đi
-            if (this.flatMap[flatIndex] === MapCell.Balk) {
+            if (this.flatMap[flatIndex] === MapCellChild.Balk) {
                 // console.log(`Found Balk at row=${row}, col=${col}`);
                 return path;
             }
@@ -703,8 +696,8 @@ class GameMap {
     
                     if (
                         !visited.has(newFlatIndex) && // Chưa duyệt qua
-                        (this.flatMap[newFlatIndex] === MapCell.Road || this.flatMap[newFlatIndex] === MapCell.Balk) && // Chỉ đi qua Road hoặc Balk
-                        this.flatMap[newFlatIndex] !== MapCell.BombZone // Tuyệt đối không đi qua BombZone
+                        (this.flatMap[newFlatIndex] === MapCellChild.Road || this.flatMap[newFlatIndex] === MapCellChild.Balk) && // Chỉ đi qua Road hoặc Balk
+                        this.flatMap[newFlatIndex] !== MapCellChild.BombZone // Tuyệt đối không đi qua BombZone
                     ) {
                         queue.push({ row: newRow, col: newCol, path: path + move });
                         visited.add(newFlatIndex); // Đánh dấu vị trí đã duyệt
@@ -722,24 +715,24 @@ class GameMap {
     calculateBombImpact(position) {
         let impactCount = 0;
     
-        const directions = [MoveDirection.UP, MoveDirection.DOWN, MoveDirection.LEFT, MoveDirection.RIGHT];
+        const directions = [MoveDirectionChild.UP, MoveDirectionChild.DOWN, MoveDirectionChild.LEFT, MoveDirectionChild.RIGHT];
         directions.forEach(dir => {
             let currentPos = position;
             for (let i = 0; i < this.player.playerInfo.power; i++) {
                 const { x, y } = this.to2dPos(currentPos);
-                if (dir === MoveDirection.UP) currentPos = this.to1dPos(x, y - 1);
-                if (dir === MoveDirection.DOWN) currentPos = this.to1dPos(x, y + 1);
-                if (dir === MoveDirection.LEFT) currentPos = this.to1dPos(x - 1, y);
-                if (dir === MoveDirection.RIGHT) currentPos = this.to1dPos(x + 1, y);
+                if (dir === MoveDirectionChild.UP) currentPos = this.to1dPos(x, y - 1);
+                if (dir === MoveDirectionChild.DOWN) currentPos = this.to1dPos(x, y + 1);
+                if (dir === MoveDirectionChild.LEFT) currentPos = this.to1dPos(x - 1, y);
+                if (dir === MoveDirectionChild.RIGHT) currentPos = this.to1dPos(x + 1, y);
     
                 // Dừng nếu vượt ngoài bản đồ
                 if (currentPos < 0 || currentPos >= this.flatMap.length) break;
     
                 const cellValue = this.flatMap[currentPos];
-                if (cellValue === MapCell.Balk) {
+                if (cellValue === MapCellChild.Balk) {
                     impactCount++;
                 }
-                if (cellValue !== MapCell.Road && cellValue !== MapCell.Balk && cellValue !== MapCell.Spoils) {
+                if (cellValue !== MapCellChild.Road && cellValue !== MapCellChild.Balk && cellValue !== MapCellChild.Spoils) {
                     break; // Gặp vật cản thì dừng
                 }
             }
@@ -753,7 +746,7 @@ class GameMap {
     async placeBombAndRetreat(bombPosition) {
         const playerPosition = this.player.position;
         const neighbors = this.getNeighborNodes(playerPosition);
-        const hasBalk = neighbors.some(({ pos }) => this.flatMap[pos] === MapCell.Balk);
+        const hasBalk = neighbors.some(({ pos }) => this.flatMap[pos] === MapCellChild.Balk);
         if(bombPosition) {
             // this.socket.emit('drive player', { direction: bombPosition+"b" });
             await this.emitDriver('drive player', { direction: bombPosition });
@@ -787,7 +780,7 @@ class GameMap {
     getBombImpactArea(bombPosition) {
         const impactArea = new Set();
         impactArea.add(bombPosition); // Thêm tâm bom vào vùng ảnh hưởng
-        const directions = [MoveDirection.UP, MoveDirection.DOWN, MoveDirection.LEFT, MoveDirection.RIGHT];
+        const directions = [MoveDirectionChild.UP, MoveDirectionChild.DOWN, MoveDirectionChild.LEFT, MoveDirectionChild.RIGHT];
         // Duyệt qua từng hướng (Lên, Xuống, Trái, Phải)
         directions.forEach(dir => {
             let currentPos = bombPosition;
@@ -796,17 +789,17 @@ class GameMap {
                 const { x, y } = this.to2dPos(currentPos);
                 // Di chuyển theo hướng tương ứng
                 let newX = x, newY = y;
-                if (dir === MoveDirection.UP) newY -= 1;
-                if (dir === MoveDirection.DOWN) newY += 1;
-                if (dir === MoveDirection.LEFT) newX -= 1;
-                if (dir === MoveDirection.RIGHT) newX += 1;
+                if (dir === MoveDirectionChild.UP) newY -= 1;
+                if (dir === MoveDirectionChild.DOWN) newY += 1;
+                if (dir === MoveDirectionChild.LEFT) newX -= 1;
+                if (dir === MoveDirectionChild.RIGHT) newX += 1;
                 // Chuyển từ tọa độ 2D sang tọa độ 1D
                 const newIndex = this.to1dPos(newX, newY);
                 // Kiểm tra nếu vị trí nằm ngoài bản đồ
                 if (newIndex < 0 || newIndex >= this.flatMap.length) break;
                 const cellValue = this.flatMap[newIndex];
                 // Nếu gặp khối không thể xuyên qua, dừng lại và không thêm khối đó vào vùng nổ
-                if ( cellValue != MapCell.Road && cellValue != MapCell.Spoils) {
+                if ( cellValue != MapCellChild.Road && cellValue != MapCellChild.Spoils) {
                     break;
                 }
                 // Nếu ô hợp lệ, thêm vào vùng nổ
@@ -834,8 +827,8 @@ class GameMap {
             index >= 0 &&
             index < this.flatMap.length &&
             (
-                this.flatMap[index] === MapCell.Road || 
-                this.flatMap[index] === MapCell.Spoils
+                this.flatMap[index] === MapCellChild.Road || 
+                this.flatMap[index] === MapCellChild.Spoils
             )
         );
     }
@@ -856,7 +849,7 @@ class GameMap {
             return false; // Vị trí ngoài bản đồ
         }
         const cellValue = this.flatMap[pos];
-        return cellValue === MapCell.Road || cellValue === MapCell.GodBadge || cellValue === MapCell.Spoils; // Chỉ cho phép ô trống và GodBadge
+        return cellValue === MapCellChild.Road || cellValue === MapCellChild.GodBadge || cellValue === MapCellChild.Spoils; // Chỉ cho phép ô trống và GodBadge
     }
 
     async moveTo(path) {
@@ -931,7 +924,7 @@ class GameMap {
             { dx: -1, dy: 1 },  // Góc dưới-trái
             { dx: 1, dy: -1 }   // Góc trên-phải
         ];
-        if (map[playerPosition.y]?.[playerPosition.x] === MapCell.BombZone) {
+        if (map[playerPosition.y]?.[playerPosition.x] === MapCellChild.BombZone) {
             return false;
         }
         // Lặp qua các hướng
@@ -940,7 +933,7 @@ class GameMap {
             const newX = playerPosition.x + dx;
     
             // Kiểm tra nếu vị trí lân cận là vùng bom
-            if (map[newY]?.[newX] === MapCell.BombZone) {
+            if (map[newY]?.[newX] === MapCellChild.BombZone) {
                 return true;
             }
         }
@@ -974,7 +967,7 @@ class GameMap {
     
                     // Tính khoảng cách Euclidean
                     const distance = Math.sqrt(Math.pow(centerRow - row, 2) + Math.pow(centerCol - col, 2));
-                    if (distance <= radius && (this.map[row][col] === MapCell.Road || this.map[row][col] == MapCell.Spoils)) {
+                    if (distance <= radius && (this.map[row][col] === MapCellChild.Road || this.map[row][col] == MapCellChild.Spoils)) {
                         // Thay thế giá trị nếu trong bán kính và giá trị bằng 0
                         this.map[row][col] = replacementValue;
                     }
@@ -1004,7 +997,7 @@ class GameMap {
         if(col >= this.mapHeight || row >= this.mapWidth || col < 1 || row < 1 ) {
             return false
         }
-        if(map[col][row] == MapCell.Road || map[col][row] == MapCell.Spoils ) {
+        if(map[col][row] == MapCellChild.Road || map[col][row] == MapCellChild.Spoils ) {
             return true
         } else {
             return false
@@ -1016,7 +1009,7 @@ class GameMap {
         if(col >= this.mapHeight || row >= this.mapWidth || col < 1 || row < 1 ) {
             return false
         }
-        if(map[row][col] == MapCell.Spoils ) {
+        if(map[row][col] == MapCellChild.Spoils ) {
             return true
         } else {
             return false
@@ -1029,7 +1022,7 @@ class GameMap {
         }
 
         if(
-            map[row][col] == MapCell.Road) {
+            map[row][col] == MapCellChild.Road) {
             return true
         } else {
             return false
@@ -1043,9 +1036,9 @@ class GameMap {
         }
         console.log("canPassing", map[col][row])
         if(
-            map[col][row] == MapCell.BombZone || 
-            map[col][row] == MapCell.Road || 
-            map[col][row] == MapCell.Spoils) {
+            map[col][row] == MapCellChild.BombZone || 
+            map[col][row] == MapCellChild.Road || 
+            map[col][row] == MapCellChild.Spoils) {
             return true
         } else {
             return false
@@ -1178,10 +1171,10 @@ class GameMap {
         const radius = 5;
     
         const directions = [
-            { row: 0, col: -1, move: MoveDirection.LEFT },
-            { row: 0, col: 1, move: MoveDirection.RIGHT },
-            { row: -1, col: 0, move: MoveDirection.UP },
-            { row: 1, col: 0, move: MoveDirection.DOWN },
+            { row: 0, col: -1, move: MoveDirectionChild.LEFT },
+            { row: 0, col: 1, move: MoveDirectionChild.RIGHT },
+            { row: -1, col: 0, move: MoveDirectionChild.UP },
+            { row: 1, col: 0, move: MoveDirectionChild.DOWN },
         ];
     
         const rows = map.length;
@@ -1243,10 +1236,10 @@ class GameMap {
         const radius = 8;
     // this.print2DArray(map)
         const directions = [
-            { row: 0, col: -1, move: MoveDirection.LEFT },
-            { row: 0, col: 1, move: MoveDirection.RIGHT },
-            { row: -1, col: 0, move: MoveDirection.UP },
-            { row: 1, col: 0, move: MoveDirection.DOWN },
+            { row: 0, col: -1, move: MoveDirectionChild.LEFT },
+            { row: 0, col: 1, move: MoveDirectionChild.RIGHT },
+            { row: -1, col: 0, move: MoveDirectionChild.UP },
+            { row: 1, col: 0, move: MoveDirectionChild.DOWN },
         ];
     
         const rows = map.length;
@@ -1276,7 +1269,7 @@ class GameMap {
             const { row, col, path } = queue.shift();
     
             // Kiểm tra nếu tìm thấy đích
-            if (map[row][col] === MapCell.Spoils || map[row][col] === MapCell.Road) {
+            if (map[row][col] === MapCellChild.Spoils || map[row][col] === MapCellChild.Road) {
                 // console.log(`--------findEscapePath---${path}---------`);
                 return path; // Trả về chuỗi đường đi
             }
@@ -1304,4 +1297,4 @@ class GameMap {
     
 }
 
-export {GameMap };
+export { GameMapChild };
