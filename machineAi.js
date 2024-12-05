@@ -39,10 +39,19 @@ class TreeNode {
     }
 }
 
+
 class GamePlayer {
     constructor(gameMap, playerInfo) {
         this.position = gameMap.to1dPos(playerInfo.currentPosition.col, playerInfo.currentPosition.row);
         this.playerInfo = playerInfo;
+    }
+
+    setPlayerInfo(playerInfo) {
+        this.playerInfo = playerInfo
+    }
+
+    setPosition(gameMap, playerInfo) {
+        this.position = gameMap.to1dPos(playerInfo.currentPosition.col, playerInfo.currentPosition.row);
     }
 }
 
@@ -142,18 +151,23 @@ class GameMap {
         this.mapHeight = res.map_info.size.rows;
         this.spoils = res.map_info.spoils;
         
-        this.player = new GamePlayer(this, currentPlayer);
-
+        if(this.player) {
+            this.player.setPlayerInfo(currentPlayer)
+            this.player.setPosition(this, currentPlayer)
+        } else {
+            this.player = new GamePlayer(this, currentPlayer);
+        }
+        
         this.bombsPosition = []
         const hasTransform = this.player.playerInfo.hasTransform;
         this.bombs = res.map_info.bombs.filter(bomb => bomb.playerId === this.player.playerInfo.id);
     
         // Lặp qua tất cả các bomb trên bản đồ và tính toán vùng ảnh hưởng
-        await res.map_info.bombs.forEach(bomb => {
+        for (const bomb of res.map_info.bombs) {
             const bombPosition = this.to1dPos(bomb.col, bomb.row);
-            this.bombsPosition.push(bombPosition)
-            this.replaceBombImpactWithSpecialZone(bombPosition)
-        });
+            this.replaceBombImpactWithSpecialZone(bombPosition, bomb.power); // Đảm bảo chờ tác vụ bất đồng bộ
+        }
+        
         
         if(this.flatMap[this.player.position] == MapCell.BombZone) {
             this.awayFromBom = true
@@ -184,7 +198,7 @@ class GameMap {
                         currentPlayer.currentPosition.col,
                         enemy.currentPosition.row,
                         enemy.currentPosition.col,
-                        7
+                        6
                     ) &&
                     (isChild || enemy.hasTransform) // Nếu là _child hoặc có hasTransform
                 ) {
@@ -222,14 +236,15 @@ class GameMap {
                 }
             // return;
         }
-    
+        const map2 = this.convertFlatTo2Dmap();
+        this.print2DArray(map2)
         // Nếu không trong vùng nguy hiểm, tiếp tục xử lý logic thông thường
         // console.log("Nếu không trong vùng nguy hiểm, tiếp tục xử lý logic thông thường", this.hasPlacedBomb)     
         return this.decideNextAction(hasTransform);
     }
     
-    replaceBombImpactWithSpecialZone(bombPosition) {
-        const bombImpactArea = this.getBombImpactArea(bombPosition);
+    replaceBombImpactWithSpecialZone(bombPosition, power) {
+        const bombImpactArea = this.getBombImpactArea(bombPosition, power);
         bombImpactArea.forEach(position => {
             if (this.flatMap[position] !== MapCell.Border) {
                 this.flatMap[position] = MapCell.BombZone; // Thay thế bằng số 77
@@ -265,7 +280,7 @@ class GameMap {
         // Duyệt qua tất cả bomb để kiểm tra vùng ảnh hưởng
         return this.bombs.some(bomb => {
             const bombPosition = this.to1dPos(bomb.col, bomb.row);
-            const bombImpactArea = this.getBombImpactArea(bombPosition);
+            const bombImpactArea = this.getBombImpactArea(bombPosition, bomb.power);
             this.replaceBombImpactWithSpecialZone(bombPosition);
             return bombImpactArea.has(playerPosition);
         });
@@ -777,7 +792,7 @@ class GameMap {
     
     
     // Hàm xác định vùng ảnh hưởng của bomb
-    getBombImpactArea(bombPosition) {
+    getBombImpactArea(bombPosition, power) {
         const impactArea = new Set();
         impactArea.add(bombPosition); // Thêm tâm bom vào vùng ảnh hưởng
         const directions = [MoveDirection.UP, MoveDirection.DOWN, MoveDirection.LEFT, MoveDirection.RIGHT];
@@ -785,7 +800,7 @@ class GameMap {
         directions.forEach(dir => {
             let currentPos = bombPosition;
             // Tính toán vùng ảnh hưởng trong phạm vi sức mạnh của người chơi
-            for (let i = 1; i <= this.player.playerInfo.power; i++) {
+            for (let i = 1; i <= power, power; i++) {
                 const { x, y } = this.to2dPos(currentPos);
                 // Di chuyển theo hướng tương ứng
                 let newX = x, newY = y;
