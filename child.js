@@ -104,9 +104,9 @@ class GameMapChild {
         this.caculatorResetTime = 0;
     }
     async parseTicktack(res) {
-        const currentPlayer = res.map_info.players.find(p => this.playerId.includes(p.id));
-        if(!currentPlayer) {
-            console.log("------------------------_____SSS--------------------")
+        const currentPlayer = res.map_info.players.find(p => this.playerId == p.id);
+        if(!currentPlayer || currentPlayer == undefined) {
+            console.log("----------SSS--------------------")
             return
         }
         this.caculatorResetTime++
@@ -157,6 +157,7 @@ class GameMapChild {
         if(this.player) {
             this.player.setPlayerInfo(currentPlayer)
             this.player.setPosition(this, currentPlayer)
+            console.log(this.player.position)
         } else {
             this.player = new GamePlayerChild(this, currentPlayer);
         }

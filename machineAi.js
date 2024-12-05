@@ -84,6 +84,8 @@ class GameMap {
          // kiểm tra việc sử dụng vũ khí thần
          this.parentSkill = true
          this.childSkill = true
+
+         this.marry = false
     }
     reset() {
         // Đặt lại tất cả các biến về giá trị mặc định
@@ -107,6 +109,11 @@ class GameMap {
     }
     async parseTicktack(res) {
         const currentPlayer = res.map_info.players.find(p => this.playerId.includes(p.id));
+        if(!currentPlayer || currentPlayer == undefined) {
+            console.log("---------P-----")
+            return
+        }
+        
         this.caculatorResetTime++
         // console.log("this.caculatorResetTime....", this.caculatorResetTime)
 
@@ -157,7 +164,12 @@ class GameMap {
         } else {
             this.player = new GamePlayer(this, currentPlayer);
         }
-        
+        if(!this.marry && this.player.playerInfo.eternalBadge > 0) {
+            this.socket.emit('action', {							
+                "action": "marry wife"						
+            })	
+            this.marry = true						
+        }
         this.bombsPosition = []
         const hasTransform = this.player.playerInfo.hasTransform;
         this.bombs = res.map_info.bombs.filter(bomb => bomb.playerId === this.player.playerInfo.id);
@@ -181,6 +193,8 @@ class GameMap {
             return;
         }
         
+        
+
         this.replaceSpoilsToMapValue()
         // Kiểm tra trạng thái đứng yên
         this.checkIdleStatus();
@@ -237,7 +251,7 @@ class GameMap {
             // return;
         }
         const map2 = this.convertFlatTo2Dmap();
-        this.print2DArray(map2)
+        // this.print2DArray(map2)
         // Nếu không trong vùng nguy hiểm, tiếp tục xử lý logic thông thường
         // console.log("Nếu không trong vùng nguy hiểm, tiếp tục xử lý logic thông thường", this.hasPlacedBomb)     
         return this.decideNextAction(hasTransform);
