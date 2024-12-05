@@ -2,7 +2,7 @@ import readline from 'readline';
 import { io } from 'socket.io-client';
 import {MapCell, MoveDirection, TreeNode, GamePlayer, GameMap } from './machineAi.js';
 // Kết nối tới server
-const gameId = 'fbe0b358-9f50-4f8d-a57b-b62bc9970ec7';
+const gameId = 'd7716295-e6ae-4378-9bf2-3cae43e56acb';
 const apiServer = 'http://localhost'; // Đổi thành URL server của bạn
 const socket = io(apiServer, { reconnect: true, transports: ['websocket'] });
 

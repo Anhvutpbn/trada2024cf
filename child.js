@@ -84,6 +84,7 @@ class GameMapChild {
          // kiểm tra việc sử dụng vũ khí thần
          this.parentSkill = true
          this.childSkill = true
+         this.oldBomb = {}
     }
     reset() {
         // Đặt lại tất cả các biến về giá trị mặc định
@@ -106,7 +107,6 @@ class GameMapChild {
     async parseTicktack(res) {
         const currentPlayer = res.map_info.players.find(p => this.playerId == p.id);
         if(!currentPlayer || currentPlayer == undefined) {
-            console.log("----------SSS--------------------")
             return
         }
         this.caculatorResetTime++
@@ -157,7 +157,6 @@ class GameMapChild {
         if(this.player) {
             this.player.setPlayerInfo(currentPlayer)
             this.player.setPosition(this, currentPlayer)
-            console.log(this.player.position)
         } else {
             this.player = new GamePlayerChild(this, currentPlayer);
         }
@@ -187,7 +186,7 @@ class GameMapChild {
 
         if (enemies.length > 0 && this.parentSkill) {
             for (const enemy of enemies) {
-                // console.log(enemy);
+                
                 const isChild = enemy.id.endsWith('_child'); // Kiểm tra nếu ID kết thúc bằng '_child'
         
                 if (
@@ -245,23 +244,35 @@ class GameMapChild {
     }
 
     // Tinh toan diem no cua qua bomb
-    replaceBombImpactWithSpecialZone(bombPosition, power, remainTime) {
+    replaceBombImpactWithSpecialZone(bombPosition, bomb) {
+        const power = bomb.power;
+        const remainTime = bomb.remainTime;
+        const createdAt = bomb.createdAt; // Timestamp
+        const currentTime = Date.now();
         const bombImpactArea = this.getBombImpactArea(bombPosition, power);
-        if(remainTime <= 600) {
-            bombImpactArea.forEach(position => {
-                if (this.flatMap[position] !== MapCellChild.Border) {
-                    this.flatMap[position] = MapCellChild.Border; // Thay thế bằng border 1
-                }
-            });
-        } else {
-            bombImpactArea.forEach(position => {
-                if (this.flatMap[position] !== MapCellChild.Border) {
-                    this.flatMap[position] = MapCellChild.BombZone; // Thay thế bằng số 77
-                }
-            });
+    
+        // Lưu vùng nổ vào `oldBomb` với key là `createdAt`
+        this.oldBomb[createdAt] = bombImpactArea;
+    
+        // Xóa các bản ghi cũ hơn 500ms
+        for (const [key, impactArea] of Object.entries(this.oldBomb)) {
+            if (currentTime - parseInt(key, 10) > 3000) {
+                delete this.oldBomb[key];
+            } else {
+                // Thay thế giá trị trong `flatMap`
+                impactArea.forEach(position => {
+                    if (this.flatMap[position] !== MapCell.Border) {
+                        this.flatMap[position] = MapCell.BombZone; // Thay thế bằng số 77
+                    }
+                });
+            }
         }
-        
-        
+    
+        bombImpactArea.forEach(position => {
+            if (this.flatMap[position] !== MapCell.Border) {
+                this.flatMap[position] = MapCell.BombZone; // Thay thế bằng số 77
+            }
+        });
     }
 
 
@@ -353,7 +364,7 @@ class GameMapChild {
             const { destination, power } = player;
             const centerRow = destination.row;
             const centerCol = destination.col;
-            const radius = power;
+            const radius = 3;
     
             // Duyệt qua các hàng trong phạm vi bán kính
             for (let row = centerRow - radius; row <= centerRow + radius; row++) {
@@ -595,15 +606,9 @@ class GameMapChild {
         }
     
         const playerPosition = this.player.position;
-        // if (this.player.playerInfo.currentWeapon !== 2) {
-        //     this.socket.emit('action', { action: "switch weapon" });
-        //     this.player.playerInfo.currentWeapon = 2; // Cập nhật trạng thái weapon
-        //     return;
-        // }
-
+    
         if (!this.hasPlacedBomb) {
             const bombPosition = this.findOptimalBombPosition(playerPosition);
-
             if (bombPosition) {
                 this.placeBombAndRetreat(bombPosition);
                 return;
@@ -616,6 +621,7 @@ class GameMapChild {
             return;
         }
     }
+    
 
     findOptimalBombPosition(position) {
         // this.printMap2D()
@@ -698,17 +704,33 @@ class GameMapChild {
     // Hàm đặt bomb và di chuyển đến vị trí an toàn
     async placeBombAndRetreat(bombPosition) {
         const playerPosition = this.player.position;
+        let combinedPath = "";
+    
+        // Bước 1: Tạo đường dẫn đến vị trí đặt bomb (1111)
+        if (bombPosition) {
+            combinedPath += bombPosition; // Gộp đường đi đến vị trí đặt bomb
+        }
+    
+        // Bước 2: Thêm hành động đặt bomb (b)
         const neighbors = this.getNeighborNodes(playerPosition);
         const hasBalk = neighbors.some(({ pos }) => this.flatMap[pos] === MapCellChild.Balk);
-        if(bombPosition) {
-            // this.socket.emit('drive player', { direction: bombPosition+"b" });
-            await this.emitDriver('drive player', { direction: bombPosition, "characterType": "child" });
-             // Ước lượng thời gian di chuyển
+        if (hasBalk) {
+            combinedPath += "b"; // Gộp hành động đặt bomb
         }
-        if(hasBalk) {
-            await this.emitDriver('drive player', { direction: "b", "characterType": "child" });
+    
+        // Bước 3: Tính toán đường thoát khỏi vùng bomb nổ (3333)
+        const spoilsPath = this.findEscapePath(); // Tìm đường thoát trong bán kính 5 ô
+        if (spoilsPath) {
+            combinedPath += spoilsPath; // Gộp đường đi thoát khỏi vùng bomb nổ
+        }
+    
+        // Emit một lần với toàn bộ chuỗi hành động
+        if (combinedPath) {
+            await this.socket.emit('drive player', { direction: combinedPath, "characterType": "child" });
         }
     }
+    
+    
 
     getNeighborNodes(val) {
         const cols = this.mapWidth;
