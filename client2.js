@@ -1,9 +1,9 @@
 import readline from 'readline';
 import { io } from 'socket.io-client';
-import {MapCell, MoveDirection, TreeNode, GamePlayer, GameMap } from './machineAi.js';
+import { GameMap2 } from './machineAi2.js'
 // Kết nối tới server
-const gameId = 'd7716295-e6ae-4378-9bf2-3cae43e56acb';
-const apiServer = 'http://localhost'; // Đổi thành URL server của bạn
+const gameId = 'fcbd0760-6cf4-4286-86a3-8a82b5a36303';
+const apiServer = 'http://192.168.1.96'; // Đổi thành URL server của bạn
 const socket = io(apiServer, { reconnect: true, transports: ['websocket'] });
 
 const playerId = 'player2-xxx'; // ID người chơi
@@ -28,14 +28,14 @@ socket.on('join game', (res) => {
     console.log('[Socket] join-game responsed:', res);
     socket.emit('register character power', {														
         "gameId": gameId,														
-        "type": 1,														
+        "type": 2														
     })	
 });
 
 socket.on('error', (err) => {
     console.error('[Socket] Error:', err);
 });
-const gameMap = new GameMap(socket, playerId);
+const gameMap = new GameMap2(socket, playerId);
 // Sự kiện nhận ticktack từ server
 socket.on('ticktack player', (res) => {
     gameMap.parseTicktack(res);
