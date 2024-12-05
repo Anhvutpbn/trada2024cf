@@ -165,7 +165,7 @@ class GameMap {
         // Lặp qua tất cả các bomb trên bản đồ và tính toán vùng ảnh hưởng
         for (const bomb of res.map_info.bombs) {
             const bombPosition = this.to1dPos(bomb.col, bomb.row);
-            this.replaceBombImpactWithSpecialZone(bombPosition, bomb.power); // Đảm bảo chờ tác vụ bất đồng bộ
+            this.replaceBombImpactWithSpecialZone(bombPosition, bomb.power, bomb.remainTime); // Đảm bảo chờ tác vụ bất đồng bộ
         }
         
         
@@ -243,13 +243,23 @@ class GameMap {
         return this.decideNextAction(hasTransform);
     }
     
-    replaceBombImpactWithSpecialZone(bombPosition, power) {
+    replaceBombImpactWithSpecialZone(bombPosition, power, remainTime) {
         const bombImpactArea = this.getBombImpactArea(bombPosition, power);
-        bombImpactArea.forEach(position => {
-            if (this.flatMap[position] !== MapCell.Border) {
-                this.flatMap[position] = MapCell.BombZone; // Thay thế bằng số 77
-            }
-        });
+        if(remainTime <= 600) {
+            bombImpactArea.forEach(position => {
+                if (this.flatMap[position] !== MapCell.Border) {
+                    this.flatMap[position] = MapCell.Border; // Thay thế bằng border 1
+                }
+            });
+        } else {
+            bombImpactArea.forEach(position => {
+                if (this.flatMap[position] !== MapCell.Border) {
+                    this.flatMap[position] = MapCell.BombZone; // Thay thế bằng số 77
+                }
+            });
+        }
+        
+        
     }
 
 
