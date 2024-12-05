@@ -147,13 +147,13 @@ class GameMap {
             }
         });
 
-        this.replaceValuesInRadius(
-            currentPlayer.currentPosition.row, 
-            currentPlayer.currentPosition.col,
-            10, 
-            MapCell.SpecialZone, 
-            MapCell.Road
-        )
+        // this.replaceValuesInRadius(
+        //     currentPlayer.currentPosition.row, 
+        //     currentPlayer.currentPosition.col,
+        //     10, 
+        //     MapCell.SpecialZone, 
+        //     MapCell.Road
+        // )
         
         // check vij trí búa
         if(res.map_info.weaponHammers.length > 0) {
@@ -218,7 +218,7 @@ class GameMap {
                         currentPlayer.currentPosition.col,
                         enemy.currentPosition.row,
                         enemy.currentPosition.col,
-                        7
+                        6
                     ) &&
                     (isChild || enemy.hasTransform) // Nếu là _child hoặc có hasTransform
                 ) {
@@ -249,13 +249,10 @@ class GameMap {
         // Picking Item TODO
         if (this.bombs.length == 0  && hasTransform && !this.isWaitingAtGodBadge) {
             const spoilsPath = this.getItem(); // Tìm Spoils trong bán kính 5 ô
-                if (spoilsPath) {
-                    console.log(spoilsPath)
-                    this.socket.emit('drive player', { direction: spoilsPath });
-                } else {
-                    // return this.decideNextAction(hasTransform);
-                }
-            // return;
+            if (spoilsPath) {
+                console.log(spoilsPath)
+                this.socket.emit('drive player', { direction: spoilsPath });
+            } 
         }
         // const map2 = this.convertFlatTo2Dmap();
         // this.print2DArray(map2)
@@ -276,7 +273,7 @@ class GameMap {
     
         // Xóa các bản ghi cũ hơn 500ms
         for (const [key, impactArea] of Object.entries(this.oldBomb)) {
-            if (currentTime - parseInt(key, 10) > 10000) {
+            if (currentTime - parseInt(key, 10) > 3000) {
                 delete this.oldBomb[key];
             } else {
                 // Thay thế giá trị trong `flatMap`
@@ -347,7 +344,7 @@ class GameMap {
         if (this.lastPosition === currentPosition) {
             const timeSinceLastMove = Date.now() - this.lastMoveTime;
 
-            if (timeSinceLastMove > 7000) { // Nếu đứng yên quá 7 giây
+            if (timeSinceLastMove > 10000) { // Nếu đứng yên quá 7 giây
                 this.awayFromBom = false;
                 this.hasPlacedBomb = false;
                 this.forceRandomMove();
@@ -1004,7 +1001,7 @@ class GameMap {
         const distance = Math.sqrt(Math.pow(centerRow - targetRow, 2) + Math.pow(centerCol - targetCol, 2));
         
         // Kiểm tra nếu khoảng cách nằm trong bán kính nhưng không nhỏ hơn 3
-        return distance <= radius && distance >= 3;
+        return distance <= radius && distance >= 2;
     }
 
     // replace vị trí rìu thần thành dranger zone để né. Còn né được hay không thì .. 

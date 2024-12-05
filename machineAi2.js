@@ -149,13 +149,13 @@ class GameMap2 {
             }
         });
 
-        this.replaceValuesInRadius(
-            currentPlayer.currentPosition.row, 
-            currentPlayer.currentPosition.col,
-            10, 
-            MapCell.SpecialZone, 
-            MapCell.Road
-        )
+        // this.replaceValuesInRadius(
+        //     currentPlayer.currentPosition.row, 
+        //     currentPlayer.currentPosition.col,
+        //     10, 
+        //     MapCell.SpecialZone, 
+        //     MapCell.Road
+        // )
         
         // check vij trí búa
         if(res.map_info.weaponHammers.length > 0) {
@@ -173,7 +173,6 @@ class GameMap2 {
         } else {
             this.player = new GamePlayer(this, currentPlayer);
         }
-        console.log(this.marry, this.player.playerInfo.eternalBadge )
         // if(!this.marry && this.player.playerInfo.eternalBadge > 0) {
         //     this.socket.emit('action', {							
         //         "action": "marry wife"						
@@ -430,7 +429,7 @@ class GameMap2 {
 
             // se tim vi tri cua dich va chay den. Tat nhien phai tranh bomb roi
             const pathToEnemy = this.findOptimalEnemiesPosition(playerPosition)
-            if(pathToEnemy) {
+            if(pathToEnemy && this.player.playerInfo.timeToUseSpecialWeapons) {
                 console.log("--------------LEST GO", pathToEnemy)
                 await this.emitDriver('drive player', { direction: pathToEnemy });
                 return

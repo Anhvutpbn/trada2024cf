@@ -1,6 +1,6 @@
 import { GameMap } from './machineAi.js';
 import { GameMapChild } from './child.js';
-const gameId = 'fcbd0760-6cf4-4286-86a3-8a82b5a36303';
+const gameId = '9f1f5e14-70c7-412c-887e-ddefe4bcccc0';
 
 // client.js
 import { connect } from 'socket.io-client';
