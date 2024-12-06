@@ -1,10 +1,10 @@
 import readline from 'readline';
 import { io } from 'socket.io-client';
 import { GameMap2 } from './machineAi2.js'
+import { SERVER_CONFIG, SOCKET_EVENTS, WORKER_TASKS } from './config.js';
 // Kết nối tới server
-const gameId = '9f1f5e14-70c7-412c-887e-ddefe4bcccc0';
-const apiServer = 'http://192.168.1.96'; // Đổi thành URL server của bạn
-const socket = io(apiServer, { reconnect: true, transports: ['websocket'] });
+const gameId = SERVER_CONFIG.GAME_ID;
+const socket = io(SERVER_CONFIG.API_SERVER, { reconnect: true, transports: ['websocket'] });
 
 const playerId = 'player2-xxx'; // ID người chơi
 const optionJoin = { game_id: gameId, player_id: playerId };

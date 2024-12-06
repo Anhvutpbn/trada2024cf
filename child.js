@@ -105,6 +105,7 @@ class GameMapChild {
         this.caculatorResetTime = 0;
     }
     async parseTicktack(res) {
+        return "vuta"
         const currentPlayer = res.map_info.players.find(p => this.playerId == p.id);
         if(!currentPlayer || currentPlayer == undefined) {
             return

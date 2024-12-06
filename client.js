@@ -1,52 +1,99 @@
-import { GameMap } from './machineAi.js';
-import { GameMapChild } from './child.js';
-const gameId = '9f1f5e14-70c7-412c-887e-ddefe4bcccc0';
-
-// client.js
 import { connect } from 'socket.io-client';
-const apiServer = 'http://192.168.1.96';
-const socket = connect(apiServer, {reconnect: true, transports: ['websocket']});
-const playerId = 'player1-xxx';
-const optionJoin = {game_id: gameId, player_id: "player1-xxx"}
+import { Worker } from 'worker_threads';
+import { SERVER_CONFIG, EVENT_GAME, SOCKET_EVENTS } from './config.js';
 
-// It it required to emit `join channel` event every time connection is happened
+const socket = connect(SERVER_CONFIG.API_SERVER, SERVER_CONFIG.SOCKET_OPTIONS);
+const optionJoin = { game_id: SERVER_CONFIG.GAME_ID, player_id: SERVER_CONFIG.PLAYER_ID_JOIN_GAME};
+const playerId = SERVER_CONFIG.PLAYER_ID
+const gameId =  SERVER_CONFIG.GAME_ID
+
+// Hàm chạy tác vụ trên Worker Thread
+const runWorkerTask = (task, data) => {
+    return new Promise((resolve, reject) => {
+        const worker = new Worker(new URL('./worker.js', import.meta.url));
+        // const reducedData = {
+        //     map_info: {
+        //         size: data.res.map_info.size, // cols, rows
+        //         map: data.res.map_info.map, // Bản đồ
+        //         spoils: data.res.map_info.spoils, // Vật phẩm
+        //         players: data.res.map_info.players.map(player => ({
+        //             id: player.id,
+        //             currentPosition: player.currentPosition, // Chỉ cần vị trí
+        //             eternalBadge: player.eternalBadge,
+        //             hasTransform: player.hasTransform,
+        //         })),
+        //     },
+        //     tag: data.res.tag, // Trạng thái hành động
+        //     player_id: data.playerId, // ID người chơi
+        //     playerId: data.playerId
+        // };
+        // console.log(data, reducedData)
+        worker.postMessage({ task, data });
+
+        worker.on('message', (result) => {
+            resolve(result);
+        });
+        worker.on('error', (err) => {
+            reject(err);
+        });
+        worker.on('exit', (code) => {
+            if (code !== 0) {
+                reject(new Error(`Worker stopped with exit code ${code}`));
+            }
+        });
+    });
+};
+
+
+// Kết nối socket
 socket.on('connect', () => {
-
-    // API-1a
     socket.emit('join game', optionJoin);
+    console.log('[Socket] Connected to the server');
 });
 
 socket.on('disconnect', () => {
-    console.warn('[Socket] disconnected');
+    console.warn('[Socket] Disconnected');
 });
 
 socket.on('connect_failed', () => {
-    console.warn('[Socket] connect_failed');
+    console.warn('[Socket] Connection failed');
 });
-
 
 socket.on('error', (err) => {
-    console.error('[Socket] error ', err);
+    console.error('[Socket] Error:', err);
 });
 
-
-// SOCKET EVENTS
-
-// API-1b
+// Nhận phản hồi từ server khi tham gia game
 socket.on('join game', (res) => {
-    console.log('[Socket] join-game responsed', res);
+    console.log('[Socket] Join-game response:', res);
     socket.emit('register character power', {
-        "gameId": gameId,
-        "type": 1,
-    })
+        gameId,
+        type: 1,
+    });
 });
 
+socket.on('ticktack player', async (res) => {
+    try {
+        const [gameMapResult, gameMapChildResult] = await Promise.all([
+            runWorkerTask('gameMap', { playerId, res }),
+            runWorkerTask('gameMapChild', { playerId, res }),
+        ]);
+        if (gameMapResult && gameMapResult.result) {
+           if(gameMapResult.result.type == EVENT_GAME.RUNNING) {
+            console.log(gameMapResult.result.path)
+            socket.emit(
+                SOCKET_EVENTS.DRIVE_PLAYER, 
+                { 
+                    direction: gameMapResult.result.path 
+                }
+            );
+           }
+        }
 
-
-const gameMap = new GameMap(socket, playerId);
-const gameMapChild = new GameMapChild(socket, playerId)
-//API-2
-socket.on('ticktack player', (res) => {
-    gameMap.parseTicktack(res);
-    gameMapChild.parseTicktack(res);
+        if (gameMapChildResult && gameMapChildResult.result) {
+            // socket.emit(gameMapChildResult.event, gameMapChildResult.action);
+        }
+    } catch (error) {
+        console.error('Error running tasks:', error); // Log lỗi chi tiết
+    }
 });
