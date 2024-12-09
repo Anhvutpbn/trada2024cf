@@ -1,4 +1,4 @@
-import { MAP_CELL, MOVE_DIRECTION, EVENT_GAME } from './config.js';
+import { MAP_CELL, MOVE_DIRECTION, EVENT_GAME, SOCKET_EVENTS } from './config.js';
 const START_GAME = "start-game";
 const UPDATE_GAME = "update-data";
 const MOVING_BANNED = "player:moving-banned";
@@ -7,6 +7,7 @@ const BE_ISOLATED = "player:be-isolated";
 const BTPG = "player:back-to-playground";
 const BOMB_EXPLODED = "bomb:exploded";
 const STUN = "player:stun-by-weapon";
+const CHAYGO = "wooden-pestle:setup"
 const EMIT_COUNT_DOWN = 300;
 
 class TreeNode {
@@ -35,9 +36,10 @@ class GamePlayer {
 }
 
 class GameMap {
-    constructor(playerId) {
+    constructor(socket, playerId) {
+        this.socket = socket;
         this.playerId = playerId;
-        this.playerIdChill = playerId + "_child";
+        this.playerIdChill = playerId+"_child";
         this.map = [];
         this.flatMap = [];
         this.mapWidth = 45;
@@ -46,22 +48,16 @@ class GameMap {
         this.bombs = [];
         this.spoils = [];
         this.bombsPosition = [];
-        this.emitStatus = false;
-        this.isMoving = false;
-        this.isBreaking = false;
-        this.currentTarget = null;
         this.isWaitingAtGodBadge = false;
-        this.lastMoveTime = Date.now();
-        this.lastPosition = null;
-        this.awayFromBom = false;
-        this.caculatorResetTime = 0;
-        this.parentSkill = true;
-        this.childSkill = true;
-        this.marry = false;
-        this.oldBomb = {};
     }
-
-    async parseTicktack(res) {
+    
+    cloc(data) {
+        console.log(data)
+    }
+    async checkingGameStatus(res) {
+        if(res.player_id === this.playerId) {
+            console.log(res.tag)
+           }
         try {
             // Reduce data processing by extracting only necessary parts
             this.mapWidth = res.map_info.size.cols;
@@ -88,24 +84,41 @@ class GameMap {
             }
 
             if (!this.player.playerInfo.hasTransform) {
+                // Kiem tra da dung chay go thi chuyen status de di chuyen
+                if(res.tag == CHAYGO && res.player_id === this.playerId) {
+                 this.isMoving = false
+                 return { type: EVENT_GAME.NO_ACTION, path: null, tick: 0 };
+                }
+
+                
                 if (res.tag === STOP_MOVING && res.player_id === this.playerId) {
                     if (this.hasValueThree(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col)) {
-                        this.isMoving = false;
+                        this.isMoving = true;
                         return { type: EVENT_GAME.RUNNING, path: "b" };
                     }
                 }
 
                 const findPathStoppingAtThree = this.findPathStoppingAtThree(this.map, [currentPlayer.currentPosition.row, currentPlayer.currentPosition.col]);
-                if (findPathStoppingAtThree.type === 1 || !this.isMoving) {
+                console.log(findPathStoppingAtThree)
+                if (findPathStoppingAtThree.type === EVENT_GAME.RUNNING || !this.isMoving) {
                     this.isMoving = true;
-                    return { type: EVENT_GAME.RUNNING, path: findPathStoppingAtThree.path };
+                    console.log("-tick 1")
+                    return { type: EVENT_GAME.RUNNING, path: findPathStoppingAtThree.path , tick: 1};
                 }
-                if (findPathStoppingAtThree.type === 2 || !this.isMoving) {
+                if (findPathStoppingAtThree.type === EVENT_GAME.RUNNING || !this.isMoving) {
                     this.isMoving = true;
-                    return { type: EVENT_GAME.RUNNING, path: findPathStoppingAtThree.path };
+                    console.log("-tick 2")
+                    return { type: EVENT_GAME.RUNNING, path: findPathStoppingAtThree.path, tick: 2 };
                 }
-                if (findPathStoppingAtThree.type === 3 || !this.isMoving) {
+                if (findPathStoppingAtThree.type === EVENT_GAME.RUNNING || !this.isMoving) {
                     this.isMoving = true;
+                    console.log("-tick 3")
+                    return { type: EVENT_GAME.NO_ACTION, path: null, tick: 3 };
+                }
+
+                if (!this.hasValueThree(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col)) {
+                    this.isMoving = false
+                    console.log("CHAO EM CO GAI LAM HONG")
                     return { type: EVENT_GAME.NO_ACTION, path: null };
                 }
             }
@@ -123,6 +136,13 @@ class GameMap {
             res = null;
         }
     }
+    async parseTicktack(res) {
+        const result = await this.checkingGameStatus(res)
+        if(result.type == EVENT_GAME.RUNNING) {
+            console.log("result", result)
+            this.emitDriver(SOCKET_EVENTS.DRIVE_PLAYER, result.path)
+        }
+    }
 
     playerPosition(x, y) {
         return { row: x, col: y };
@@ -135,53 +155,73 @@ class GameMap {
             console.log(row);
         }
     }
-
-    findPathStoppingAtThree(grid, start) {
-        const directions = [
-            [1, 0, '4'],
-            [0, -1, '1'],
-            [0, 1, '2'],
-            [-1, 0, '3'],
-        ];
-
-        const isValid = (x, y, visited) => {
-            const rows = grid.length;
-            const cols = grid[0].length;
-            return (
-                x >= 0 &&
-                x < rows &&
-                y >= 0 &&
-                y < cols &&
-                !visited[x][y] &&
-                (grid[x][y] === 0 || grid[x][y] === 3 || grid[x][y] === 6)
-            );
-        };
-
-        const queue = [[start[0], start[1], []]];
-        const visited = Array.from({ length: grid.length }, () => new Uint8Array(grid[0].length));
-        visited[start[0]][start[1]] = 1;
-
-        while (queue.length > 0) {
-            const [x, y, path] = queue.shift();
-
-            if (grid[x][y] === 6) {
-                const stoppingPath = [...path];
-                return { type: 2, path: stoppingPath.join('') };
-            }
-
-            for (const [dx, dy, action] of directions) {
-                const nx = x + dx;
-                const ny = y + dy;
-
-                if (isValid(nx, ny, visited)) {
-                    queue.push([nx, ny, [...path, action]]);
-                    visited[nx][ny] = 1;
-                }
-            }
-        }
-
-        return { type: 3, path: null };
+    
+    async emitDriver(event, data) {
+        console.log("---status", this.isMoving, data)
+        await await this.socket.emit(event, { direction: data });
     }
+
+    findPathStoppingAtThree = (grid, start) => {
+        const directions = [
+          [1, 0, '4'],  // Xuống
+          [0, -1, '1'], // Trái
+          [0, 1, '2'],  // Phải
+          [-1, 0, '3'], // Lên
+        ];
+      
+        const isValid = (x, y, visited) => {
+          const rows = grid.length;
+          const cols = grid[0].length;
+          return (
+            x >= 0 &&
+            x < rows &&
+            y >= 0 &&
+            y < cols &&
+            !visited[x][y] &&
+            (grid[x][y] === 0 || grid[x][y] === 3 || grid[x][y] === 6)
+          );
+        };
+      
+        const queue = [[start[0], start[1], []]]; // [row, col, path[]]
+        const visited = Array.from({ length: grid.length }, () =>
+          Array(grid[0].length).fill(false)
+        );
+        visited[start[0]][start[1]] = true;
+      
+        while (queue.length > 0) {
+          const [x, y, path] = queue.shift();
+      
+          // Nếu gặp ô 6
+          if (grid[x][y] === 6) {
+            const fullPath = [...path, { move: null, value: 6, row: x, col: y }];
+            const stoppingPath = [];
+            for (const step of fullPath) {
+              if (step.value === 3) {
+                return { type: EVENT_GAME.RUNNING, path: stoppingPath.join('') };
+              }
+              if (step.move) stoppingPath.push(step.move);
+            }
+            return { type: EVENT_GAME.RUNNING, path: stoppingPath.join('') };
+          }
+      
+          // Duyệt các hướng
+          for (const [dx, dy, action] of directions) {
+            const nx = x + dx;
+            const ny = y + dy;
+      
+            if (isValid(nx, ny, visited)) {
+              queue.push([
+                nx,
+                ny,
+                [...path, { move: action, value: grid[x][y], row: x, col: y }],
+              ]);
+              visited[nx][ny] = true;
+            }
+          }
+        }
+      
+        return { type: EVENT_GAME.NO_ACTION, path: null };
+      };
 
     hasValueThree(x, y) {
         return (

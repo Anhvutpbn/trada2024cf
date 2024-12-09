@@ -11,23 +11,6 @@ const gameId =  SERVER_CONFIG.GAME_ID
 const runWorkerTask = (task, data) => {
     return new Promise((resolve, reject) => {
         const worker = new Worker(new URL('./worker.js', import.meta.url));
-        // const reducedData = {
-        //     map_info: {
-        //         size: data.res.map_info.size, // cols, rows
-        //         map: data.res.map_info.map, // Bản đồ
-        //         spoils: data.res.map_info.spoils, // Vật phẩm
-        //         players: data.res.map_info.players.map(player => ({
-        //             id: player.id,
-        //             currentPosition: player.currentPosition, // Chỉ cần vị trí
-        //             eternalBadge: player.eternalBadge,
-        //             hasTransform: player.hasTransform,
-        //         })),
-        //     },
-        //     tag: data.res.tag, // Trạng thái hành động
-        //     player_id: data.playerId, // ID người chơi
-        //     playerId: data.playerId
-        // };
-        // console.log(data, reducedData)
         worker.postMessage({ task, data });
 
         worker.on('message', (result) => {
