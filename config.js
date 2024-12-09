@@ -1,7 +1,7 @@
 // Server Configuration
 export const SERVER_CONFIG = {
-    API_SERVER: 'http://localhost',
-    GAME_ID: 'adbcbd23-4a5d-41ea-b5a2-8dcdd69e266d',
+    API_SERVER: 'http://192.168.1.21',
+    GAME_ID: 'bb1af9dd-c744-4c5f-930c-478a4499c64d',
     PLAYER_ID: 'player1-xxx',
     PLAYER_ID_JOIN_GAME: 'player1-xxx',
     SOCKET_OPTIONS: {
@@ -45,7 +45,9 @@ export const EVENT_GAME = {
     HIT: "HIT",
     BOMBED: "BOMB",
     MARRY: "MARRY",
-    NO_ACTION: "NOACTION"
+    NO_ACTION: "NOACTION",
+    WAIT_GOD_BAGDE: "GOD",
+    USE_SPECIAL_SKILL: "ICBM"
 };
 
 // Worker Tasks

@@ -173,12 +173,12 @@ class GameMap2 {
         } else {
             this.player = new GamePlayer(this, currentPlayer);
         }
-        // if(!this.marry && this.player.playerInfo.eternalBadge > 0) {
-        //     this.socket.emit('action', {							
-        //         "action": "marry wife"						
-        //     })	
-        //     this.marry = true						
-        // }
+        if(!this.marry && this.player.playerInfo.eternalBadge > 0) {
+            this.socket.emit('action', {							
+                "action": "marry wife"						
+            })	
+            this.marry = true						
+        }
         this.bombsPosition = []
         const hasTransform = this.player.playerInfo.hasTransform;
         this.bombs = res.map_info.bombs.filter(bomb => bomb.playerId === this.player.playerInfo.id);
