@@ -162,12 +162,12 @@ class GameMap {
                 }
             }
             console.log(res.gameRemainTime)
-            if(!this.marry && this.player.playerInfo.eternalBadge > 0 ) {
-                this.socket.emit('action', {							
-                    "action": "marry wife"						
-                })	
-                this.marry = true						
-            }
+            // if(!this.marry && this.player.playerInfo.eternalBadge > 0 ) {
+            //     this.socket.emit('action', {							
+            //         "action": "marry wife"						
+            //     })	
+            //     this.marry = true						
+            // }
             // console.log(this.bombs)
             this.addBombs(res.map_info.bombs)
             this.removeExpiredBombs()
@@ -570,7 +570,7 @@ class GameMap {
                     newCol >= 0 &&
                     newCol < numCols &&
                     !visited[newRow][newCol] &&
-                    // this.map[newRow][newCol] !== MAP_CELL.BOMB_ZONE && // Không đi vào vùng bom
+                    this.map[newRow][newCol] !== MAP_CELL.JAIL && // Không đi vào vùng bom
                     this.map[newRow][newCol] !== MAP_CELL.BORDER && // Không đi vào ranh giới
                     this.map[newRow][newCol] !== MAP_CELL.BALK && // Không đi vào chướng ngại vật
                     this.map[newRow][newCol] !== MAP_CELL.BRICK_WALL // Không đi vào tường gạch
