@@ -82,28 +82,28 @@ class GameMap {
                     const { row, col } = enemy.currentPosition;
             
                     // Đặt vị trí hiện tại của enemy là MAP_CELL.ENEMY
-                    this.map[row][col] = MAP_CELL.ENEMY;
+                    this.map[row][col] = MAP_CELL.BALK;
             
                     // Cập nhật bán kính 2 ô xung quanh thành vùng bom
-                    for (let dr = -1; dr <= 1; dr++) {
-                        for (let dc = -1; dc <= 1; dc++) {
-                            const newRow = row + dr;
-                            const newCol = col + dc;
+                    // for (let dr = -1; dr <= 1; dr++) {
+                    //     for (let dc = -1; dc <= 1; dc++) {
+                    //         const newRow = row + dr;
+                    //         const newCol = col + dc;
             
-                            // Kiểm tra nếu vị trí mới nằm trong bản đồ
-                            if (
-                                newRow >= 0 &&
-                                newRow < this.map.length &&
-                                newCol >= 0 &&
-                                newCol < this.map[0].length
-                            ) {
-                                // Cập nhật vị trí xung quanh enemy thành MAP_CELL.BOMB_ZONE
-                                if (this.map[newRow][newCol] !== MAP_CELL.ENEMY) {
-                                    this.map[newRow][newCol] = MAP_CELL.BOMB_ZONE;
-                                }
-                            }
-                        }
-                    }
+                    //         // Kiểm tra nếu vị trí mới nằm trong bản đồ
+                    //         if (
+                    //             newRow >= 0 &&
+                    //             newRow < this.map.length &&
+                    //             newCol >= 0 &&
+                    //             newCol < this.map[0].length
+                    //         ) {
+                    //             // Cập nhật vị trí xung quanh enemy thành MAP_CELL.BOMB_ZONE
+                    //             if (this.map[newRow][newCol] !== MAP_CELL.ENEMY) {
+                    //                 this.map[newRow][newCol] = MAP_CELL.BOMB_ZONE;
+                    //             }
+                    //         }
+                    //     }
+                    // }
                 }
             });
             const nonChildEnemies = enemies.find(enemy => !enemy.id.endsWith('_child'));
@@ -162,12 +162,12 @@ class GameMap {
                 }
             }
             console.log(res.gameRemainTime)
-            // if(!this.marry && this.player.playerInfo.eternalBadge > 0 ) {
-            //     this.socket.emit('action', {							
-            //         "action": "marry wife"						
-            //     })	
-            //     this.marry = true						
-            // }
+            if(!this.marry && this.player.playerInfo.eternalBadge > 0 && res.gameRemainTime <= 27) {
+                this.socket.emit('action', {							
+                    "action": "marry wife"						
+                })	
+                this.marry = true						
+            }
             // console.log(this.bombs)
             this.addBombs(res.map_info.bombs)
             this.removeExpiredBombs()
@@ -372,7 +372,7 @@ class GameMap {
         );
       
         // Kiểm tra nếu khoảng cách nằm trong khoảng [3, 5]
-        return distance >= 3 && distance <= 4;
+        return distance >= 3 && distance <= 5;
       };
       
     findEnemiesWithinRange = (playerPosition, enemies) => {
