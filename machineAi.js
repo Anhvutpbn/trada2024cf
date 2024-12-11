@@ -765,7 +765,7 @@ class GameMap {
     // Main logic
     findSpoilAndPath(map, playerPosition, spoils) {
         // Kiểm tra vật phẩm trong bán kính 5
-        const nearbySpoils = this.isWithinRadius(playerPosition, spoils, 5);
+        const nearbySpoils = this.isWithinRadius(playerPosition, spoils, 7);
     
         if (nearbySpoils.length === 0) {
             return null;
