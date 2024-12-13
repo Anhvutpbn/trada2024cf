@@ -110,6 +110,7 @@ class GameMap2 {
         this.caculatorResetTime = 0;
     }
     async parseTicktack(res) {
+        if(res.player_id === this.playerId) { console.log(res.tag) }
         const currentPlayer = res.map_info.players.find(p => this.playerId.includes(p.id));
         if(!currentPlayer || currentPlayer == undefined) {
             // console.log("---------P-----")
@@ -209,7 +210,7 @@ class GameMap2 {
         this.checkIdleStatus();
 
         if (enemies.length > 0 && this.parentSkill) {
-            console.log("--------0===)===============> 1")
+            // console.log("--------0===)===============> 1")
             for (const enemy of enemies) {
                 // console.log(enemy);
                 const isChild = enemy.id.endsWith('_child'); // Kiểm tra nếu ID kết thúc bằng '_child'
@@ -226,7 +227,7 @@ class GameMap2 {
                     ) &&
                     (isChild || enemy.hasTransform) // Nếu là _child hoặc có hasTransform
                 ) {
-                    console.log("--------0===)===============>")
+                    // console.log("--------0===)===============>")
                     if (enemy.currentPosition.col !== undefined) {
                         this.parentSkill = false 
                         await this.socket.emit("action", {
@@ -249,7 +250,7 @@ class GameMap2 {
         }
 
         if(this.playerStopNearbyBomb() || !this.parentSkill) {
-            console.log("WATING COOLDOWN_-------------------")
+            // console.log("WATING COOLDOWN_-------------------")
             await this.emitDriver('drive player', { direction: 'x' });
         }
         // Picking Item TODO
@@ -430,7 +431,7 @@ class GameMap2 {
             // se tim vi tri cua dich va chay den. Tat nhien phai tranh bomb roi
             const pathToEnemy = this.findOptimalEnemiesPosition(playerPosition)
             if(pathToEnemy && this.player.playerInfo.timeToUseSpecialWeapons) {
-                console.log("--------------LEST GO", pathToEnemy)
+                // console.log("--------------LEST GO", pathToEnemy)
                 await this.emitDriver('drive player', { direction: pathToEnemy });
                 return
             }
@@ -800,11 +801,11 @@ class GameMap2 {
     
             // Chuyển tọa độ 2D (row, col) thành index phẳng
             const flatIndex = row * this.mapWidth + col;
-            console.log(this.mapHeight, this.mapWidth)
+            // console.log(this.mapHeight, this.mapWidth)
             for(let i = 0; i < this.enemiesPosition.length; i++ ) {
                 // Nếu tìm thấy hộp cần phá (MapCell.Balk)
                 if (flatIndex === this.to1dPos(this.enemiesPosition[i].col, this.enemiesPosition[i].row)) {
-                    console.log(`Found Balk at row=${row}, col=${col}`, path);
+                    // console.log(`Found Balk at row=${row}, col=${col}`, path);
                     return path;
                 }
             }

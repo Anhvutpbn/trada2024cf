@@ -15,15 +15,6 @@ const directionsSW = {
     3: { dr: -1, dc: 0 }, // Lên
     4: { dr: 1, dc: 0 },  // Xuống
 };
-class TreeNode {
-    constructor(val, dir = null, parent = null) {
-        this.val = val;
-        this.dir = dir;
-        this.parent = parent;
-        this.children = [];
-        this.distance = parent ? parent.distance + 1 : 0;
-    }
-}
 
 class GamePlayer {
     constructor(gameMap, playerInfo) {
@@ -62,7 +53,7 @@ class GameMap {
         console.log(data)
     }
     async checkingGameStatus(res) {
-        // if(res.player_id === this.playerId) { console.log(res.tag) }
+        if(res.player_id === this.playerId) { console.log(res.tag) }
         try {
             // Reduce data processing by extracting only necessary parts
             this.mapWidth = res.map_info.size.cols;
@@ -119,6 +110,14 @@ class GameMap {
                 this.player = new GamePlayer(this, currentPlayer);
             }
 
+            if(!this.marry && this.player.playerInfo.eternalBadge > 0) {
+                this.socket.emit('action', {							
+                    "action": "marry wife"						
+                })	
+                this.marry = true						
+            }
+
+
             if (!this.player.playerInfo.hasTransform) {
 
                 // Đang đứng ở huy hiệu thần thì đợi. 
@@ -161,13 +160,8 @@ class GameMap {
                     return { type: EVENT_GAME.NO_ACTION, path: null };
                 }
             }
-            console.log(res.gameRemainTime)
-            if(!this.marry && this.player.playerInfo.eternalBadge > 0 && res.gameRemainTime <= 27) {
-                this.socket.emit('action', {							
-                    "action": "marry wife"						
-                })	
-                this.marry = true						
-            }
+            
+            
             // console.log(this.bombs)
             this.addBombs(res.map_info.bombs)
             this.removeExpiredBombs()
@@ -181,7 +175,7 @@ class GameMap {
                     // console.log("--------------",this.findSafePath(this.map, res.map_info.weaponWinds))
                 }
             }
-
+            // this.printMap2DV2(this.map)
             if(this.player.playerInfo.currentWeapon !== 2) {
                 this.socket.emit('action', { action: "switch weapon" });
                 // console.log("Doi Vu khi Chinh")
@@ -204,17 +198,17 @@ class GameMap {
                 return { type: EVENT_GAME.RUNNING, path: spoildPath.path, tick: "RUN GET PATH" };
             }
             // Đánh giá tình hình. Nếu đứng Gần địch thì Ném vũ khí thần. Trong khoảng 3-5 ô
-            const checkCanUseSpecialWeapon = this.findEnemiesWithinRange(this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col), enemies);
+            // const checkCanUseSpecialWeapon = this.findEnemiesWithinRange(this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col), enemies);
 
-            if(
-                checkCanUseSpecialWeapon.canShot &&
-                this.player.playerInfo.timeToUseSpecialWeapons > 0 &&
-                this.enemyTransform &&
-                this.parentSkill
-            )
-            {
-                return { type: EVENT_GAME.USE_SPECIAL_SKILL, path: checkCanUseSpecialWeapon.target, tick: "USE_SPECIAL_SKILL" }; 
-            }
+            // if(
+            //     checkCanUseSpecialWeapon.canShot &&
+            //     this.player.playerInfo.timeToUseSpecialWeapons > 0 &&
+            //     this.enemyTransform &&
+            //     this.parentSkill
+            // )
+            // {
+            //     return { type: EVENT_GAME.USE_SPECIAL_SKILL, path: checkCanUseSpecialWeapon.target, tick: "USE_SPECIAL_SKILL" }; 
+            // }
 
             // Đoạn này cần check nếu địch ở gần thì có thể đi đến đặt bomb và lùi lại. 
 
@@ -224,12 +218,20 @@ class GameMap {
                 this.player.playerInfo.power,
                 this.map
             )
-            return { type: EVENT_GAME.BOMBED, path: boxPath, tick: "BOMBED" };
+            
+            if(boxPath) {
+                return { type: EVENT_GAME.BOMBED, path: boxPath, tick: "BOMBED" };
+            } else {
+                if (this.hasValueBALK(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col)) {
+                    this.isMoving = true;
+                    return { type: EVENT_GAME.BOMBED, path: "b", tick: "BOMBED" };
+                }
+            }
             // if (!this.marry && this.player.playerInfo.eternalBadge > 0) {
             //     this.marry = true;
             //     return { type: EVENT_GAME.NO_ACTION, path: checkCanUseSpecialWeapon.target, tick: ":marry" };
             // }
-            
+            return { type: EVENT_GAME.NO_ACTION, path: null, tick: "END" };
         } catch (error) {
             console.log(error)
             return { type: EVENT_GAME.NO_ACTION, path: null };
@@ -359,6 +361,15 @@ class GameMap {
         );
     }
 
+    hasValueBALK(x, y) {
+        return (
+            this.map[x + 1]?.[y] === MAP_CELL.BALK ||
+            this.map[x - 1]?.[y] === MAP_CELL.BALK ||
+            this.map[x]?.[y + 1] === MAP_CELL.BALK ||
+            this.map[x]?.[y - 1] === MAP_CELL.BALK
+        );
+    }
+
 
     // Tính toán tìm kiếm địch ở trong range Nếu có thì bắn đạn
 
@@ -453,7 +464,7 @@ class GameMap {
     addBombs(newBombs) {
         newBombs.forEach(newBomb => {
             // Tạo giá trị `createdAt` đã được cộng thêm 500
-            const adjustedCreatedAt = newBomb.createdAt + 500;
+            const adjustedCreatedAt = newBomb.createdAt + 200;
     
             // Kiểm tra nếu `createdAt` đã tồn tại trong mảng
             const exists = this.bombs.some(bomb => bomb.createdAt === adjustedCreatedAt);
@@ -496,7 +507,7 @@ class GameMap {
             const { row, col, power, createdAt } = bomb;
     
             // Kiểm tra điều kiện thời gian
-            if (currentTime - createdAt >= 35) {
+            if (currentTime - createdAt >= 15) {
                 // Đánh dấu vị trí quả bom
                 this.map[row][col] = MAP_CELL.BOMB_ZONE;
     
