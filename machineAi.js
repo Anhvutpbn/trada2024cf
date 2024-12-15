@@ -1,4 +1,5 @@
 import { MAP_CELL, MOVE_DIRECTION, EVENT_GAME, SOCKET_EVENTS } from './config.js';
+import { CommonFunction } from './common.js'
 const START_GAME = "start-game";
 const UPDATE_GAME = "update-data";
 const MOVING_BANNED = "player:moving-banned";
@@ -9,6 +10,8 @@ const BOMB_EXPLODED = "bomb:exploded";
 const STUN = "player:stun-by-weapon";
 const CHAYGO = "wooden-pestle:setup"
 const EMIT_COUNT_DOWN = 300;
+
+const commonFunction = new CommonFunction;
 const directionsSW = {
     1: { dr: 0, dc: -1 }, // Trái
     2: { dr: 0, dc: 1 },  // Phải
@@ -18,7 +21,7 @@ const directionsSW = {
 
 class GamePlayer {
     constructor(gameMap, playerInfo) {
-        this.position = gameMap.playerPosition(playerInfo.currentPosition.col, playerInfo.currentPosition.row);
+        this.position = gameMap.playerPosition(playerInfo.currentPosition.row, playerInfo.currentPosition.col);
         this.playerInfo = playerInfo;
     }
 
@@ -27,7 +30,7 @@ class GamePlayer {
     }
 
     setPosition(gameMap, playerInfo) {
-        this.position = gameMap.playerPosition(playerInfo.currentPosition.col, playerInfo.currentPosition.row);
+        this.position = gameMap.playerPosition(playerInfo.currentPosition.row, playerInfo.currentPosition.col);
     }
 }
 
@@ -110,12 +113,12 @@ class GameMap {
                 this.player = new GamePlayer(this, currentPlayer);
             }
 
-            if(!this.marry && this.player.playerInfo.eternalBadge > 0) {
-                this.socket.emit('action', {							
-                    "action": "marry wife"						
-                })	
-                this.marry = true						
-            }
+            // if(!this.marry && this.player.playerInfo.eternalBadge > 0) {
+            //     this.socket.emit('action', {							
+            //         "action": "marry wife"						
+            //     })	
+            //     this.marry = true						
+            // }
 
 
             if (!this.player.playerInfo.hasTransform) {
@@ -191,6 +194,22 @@ class GameMap {
                     return { type: EVENT_GAME.NO_ACTION, path: null };
                 }
             }
+
+            // if(this.marry) {
+            //     const childPlayer = res.map_info.players.find(p => this.playerIdChill == p.id);
+            //     if (childPlayer) {
+            //         const keepDistance = commonFunction.processEscape(
+            //             this.map, 
+            //             this.playerPosition(childPlayer.currentPosition.row, childPlayer.currentPosition.col),
+            //             this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col),
+            //             5
+            //         )
+            //         console.log(keepDistance)
+            //         if(keepDistance.needMove) {
+            //             return { type: EVENT_GAME.RUNNING, path: keepDistance.path, tick: "RUN KEEP DISTANCE" };
+            //         }
+            //     };
+            // }
             
             const spoildPath = this.findSpoilAndPath(this.map, this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col), res.map_info.spoils)
 
@@ -242,7 +261,7 @@ class GameMap {
     }
     async parseTicktack(res) {
         const result = await this.checkingGameStatus(res)
-
+        console.log(result)
         if(result.type == EVENT_GAME.RUNNING) {
             this.emitDriver(SOCKET_EVENTS.DRIVE_PLAYER, result.path)
         }

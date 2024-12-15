@@ -1,4 +1,5 @@
 import { MAP_CELL, MOVE_DIRECTION, EVENT_GAME, SOCKET_EVENTS } from './config.js';
+import { CommonFunction } from './common.js'
 // Constants for Map Cells
 const MapCellChild = {
     Road: 0,           // Ô trống (Người chơi có thể đi qua)
@@ -12,7 +13,7 @@ const MapCellChild = {
     Spoils: 99 // Cac gia tri duoc replace boi vi tri cua spoil
 };
 
-
+const commonFunction = new CommonFunction;
 const MoveDirectionChild = {
     LEFT: "1",  // Di chuyển sang trái
     RIGHT: "2", // Di chuyển sang phải
@@ -124,7 +125,8 @@ class GameMapChild {
             if(nonChildEnemies !== undefined && nonChildEnemies &&nonChildEnemies.hasTransform) {
                 this.enemyTransform = true
             }
-
+            const parentPlayer = res.map_info.players.find(p => this.playerIdParent == p.id);
+            this.map[parentPlayer.currentPosition.row][parentPlayer.currentPosition.col] = MAP_CELL.BOMB_ZONE;
             if (this.player) {
                 this.player.setPlayerInfo(currentPlayer);
                 this.player.setPosition(this, currentPlayer);
@@ -161,6 +163,20 @@ class GameMapChild {
                 }
             }
             
+            // const parentPlayer = res.map_info.players.find(p => this.playerIdParent == p.id);
+            //     if (parentPlayer) {
+            //         const keepDistance = commonFunction.processEscape(
+            //             this.map, 
+            //             this.playerPosition(parentPlayer.currentPosition.row, parentPlayer.currentPosition.col),
+            //             this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col),
+            //             5
+            //         )
+            //         console.log(keepDistance)
+            //         if(keepDistance.needMove) {
+            //             return { type: EVENT_GAME.RUNNING, path: keepDistance.path, tick: "RUN KEEP DISTANCE CHILD" };
+            //         }
+            //     };
+
             const spoildPath = this.findSpoilAndPath(this.map, this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col), res.map_info.spoils)
 
             if(spoildPath) {
@@ -203,7 +219,7 @@ class GameMapChild {
     }
     async parseTicktack(res) {
         const result = await this.checkingGameStatus(res)
-
+        console.log(result)
         if(result.type == EVENT_GAME.RUNNING) {
             this.emitDriver(SOCKET_EVENTS.DRIVE_PLAYER, result.path)
         }
