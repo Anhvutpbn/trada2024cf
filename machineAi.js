@@ -69,7 +69,7 @@ class GameMap {
 
             const baby = res.map_info.players.find(p => this.playerIdChill == p.id);
             if (baby) {
-                this.map[baby.currentPosition.row][baby.currentPosition.col] = "MAP_CELL.BOMB_ZONE"
+                // this.map[baby.currentPosition.row][baby.currentPosition.col] = "MAP_CELL.BOMB_ZONE"
                 // this.map[baby.currentPosition.row - 2][baby.currentPosition.col] = MAP_CELL.BOMB_ZONE
                 // this.map[baby.currentPosition.row - 1][baby.currentPosition.col] = MAP_CELL.BOMB_ZONE
                 // this.map[baby.currentPosition.row + 1][baby.currentPosition.col] = MAP_CELL.BOMB_ZONE
@@ -79,7 +79,6 @@ class GameMap {
                 // this.map[baby.currentPosition.row][baby.currentPosition.col + 1] = MAP_CELL.BOMB_ZONE
                 // this.map[baby.currentPosition.row][baby.currentPosition.col + 2] = MAP_CELL.BOMB_ZONE
             };
-            this.powerPlayer = currentPlayer.power
             // Update enemy positions on the map
             const enemies = res.map_info.players.filter(p => p.id !== this.playerId && p.id !== this.playerIdChill);
             enemies.forEach(enemy => {
@@ -157,15 +156,16 @@ class GameMap {
             this.addBombs(res.map_info.bombs)
             this.removeExpiredBombs()
             this.replaceBombExplosionOnMap()
+            console.log(this.bombs, this.map[currentPlayer.currentPosition.row][currentPlayer.currentPosition.col])
             if(res.map_info.weaponHammers.length > 0) {
                 this.updateMapWithICBM(res.map_info.weaponHammers, MAP_CELL.BOMB_ZONE)
             }
-            if (res.map_info.weaponWinds != undefined && res.map_info.weaponWinds && res.map_info.weaponWinds.length > 0) {
-                const weaponWindsComming = this.isInDanger(res.map_info.weaponWinds,  this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col))
-                if(weaponWindsComming) {
-                    // console.log("--------------",this.findSafePath(this.map, res.map_info.weaponWinds))
-                }
-            }
+            // if (res.map_info.weaponWinds != undefined && res.map_info.weaponWinds && res.map_info.weaponWinds.length > 0) {
+            //     const weaponWindsComming = this.isInDanger(res.map_info.weaponWinds,  this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col))
+            //     if(weaponWindsComming) {
+            //         // console.log("--------------",this.findSafePath(this.map, res.map_info.weaponWinds))
+            //     }
+            // }
             // this.printMap2DV2(this.map)
             if(this.player.playerInfo.currentWeapon !== 2) {
                 this.socket.emit('action', { action: "switch weapon" });
@@ -175,6 +175,7 @@ class GameMap {
 
             // Neu dang trong vung bomb thi ne
             if(this.map[currentPlayer.currentPosition.row][currentPlayer.currentPosition.col] == MAP_CELL.BOMB_ZONE) {
+                console.log("------RUN BOMB THOI AE OI--------")
                 const runningPath = this.findEscapePath(this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col))
                 if(runningPath) {
                     return { type: EVENT_GAME.RUNNING, path: runningPath, tick: "RUN BOMB AWAY" };
@@ -451,32 +452,30 @@ class GameMap {
     }
 
     addBombs(newBombs) {
+        const bombMap = new Map(this.bombs.map(bomb => [bomb.createdAt, bomb])); // Tạo Map để kiểm tra nhanh hơn
+    
         newBombs.forEach(newBomb => {
-            // Tạo giá trị `createdAt` đã được cộng thêm 500
-            const adjustedCreatedAt = newBomb.createdAt + 300;
-    
-            // Kiểm tra nếu `createdAt` đã tồn tại trong mảng
-            const exists = this.bombs.some(bomb => bomb.createdAt === adjustedCreatedAt);
-    
-            if (!exists) {
-                // Tạo bản sao của quả bom mới, cập nhật `remainTime` và `createdAt`
+            if (!bombMap.has(newBomb.createdAt)) {
                 const updatedBomb = {
                     ...newBomb,
-                    remainTime: newBomb.remainTime + 100,
-                    createdAt: adjustedCreatedAt, // Sử dụng giá trị đã điều chỉnh
+                    created_date_local: Date.now(),
                 };
     
-                // Thêm quả bom vào mảng
+                // Thêm quả bom vào mảng và Map
                 this.bombs.push(updatedBomb);
+                bombMap.set(newBomb.createdAt, updatedBomb);
             }
         });
     }
     
-    // Hàm xóa các quả bom đã hết hạn
     removeExpiredBombs() {
         const currentTimestamp = Date.now();
-        this.bombs = this.bombs.filter(bomb => currentTimestamp - bomb.createdAt <= 2000);
+        this.bombs = this.bombs.filter(bomb => {
+            console.log(currentTimestamp - bomb.created_date_local)
+            return currentTimestamp - bomb.created_date_local <= 2250;
+        });
     }
+    
 
     replaceBombExplosionOnMap() {
         const directions = [
@@ -493,10 +492,10 @@ class GameMap {
     
         // Duyệt qua tất cả các quả bom
         this.bombs.forEach(bomb => {
-            const { row, col, power, createdAt } = bomb;
+            const { row, col, power, created_date_local } = bomb;
     
             // Kiểm tra điều kiện thời gian
-            if (currentTime - createdAt >= 30) {
+            if (currentTime - created_date_local >= 30) {
                 // Đánh dấu vị trí quả bom
                 this.map[row][col] = MAP_CELL.BOMB_ZONE;
     
