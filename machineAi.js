@@ -50,13 +50,11 @@ class GameMap {
         this.enemyTransform = false;
         this.parentSkill = true;
         this.marry = false;
+        this.powerPlayer = 1;
+        this.baby = false
     }
     
-    cloc(data) {
-        console.log(data)
-    }
     async checkingGameStatus(res) {
-        if(res.player_id === this.playerId) { console.log(res.tag) }
         try {
             // Reduce data processing by extracting only necessary parts
             this.mapWidth = res.map_info.size.cols;
@@ -69,6 +67,19 @@ class GameMap {
                 console.log("--- exeption")
             };
 
+            const baby = res.map_info.players.find(p => this.playerIdChill == p.id);
+            if (baby) {
+                this.map[baby.currentPosition.row][baby.currentPosition.col] = "MAP_CELL.BOMB_ZONE"
+                // this.map[baby.currentPosition.row - 2][baby.currentPosition.col] = MAP_CELL.BOMB_ZONE
+                // this.map[baby.currentPosition.row - 1][baby.currentPosition.col] = MAP_CELL.BOMB_ZONE
+                // this.map[baby.currentPosition.row + 1][baby.currentPosition.col] = MAP_CELL.BOMB_ZONE
+                // this.map[baby.currentPosition.row + 2][baby.currentPosition.col] = MAP_CELL.BOMB_ZONE
+                // this.map[baby.currentPosition.row][baby.currentPosition.col - 2] = MAP_CELL.BOMB_ZONE
+                // this.map[baby.currentPosition.row][baby.currentPosition.col - 1] = MAP_CELL.BOMB_ZONE
+                // this.map[baby.currentPosition.row][baby.currentPosition.col + 1] = MAP_CELL.BOMB_ZONE
+                // this.map[baby.currentPosition.row][baby.currentPosition.col + 2] = MAP_CELL.BOMB_ZONE
+            };
+            this.powerPlayer = currentPlayer.power
             // Update enemy positions on the map
             const enemies = res.map_info.players.filter(p => p.id !== this.playerId && p.id !== this.playerIdChill);
             enemies.forEach(enemy => {
@@ -76,28 +87,7 @@ class GameMap {
                     const { row, col } = enemy.currentPosition;
             
                     // Đặt vị trí hiện tại của enemy là MAP_CELL.ENEMY
-                    this.map[row][col] = MAP_CELL.BALK;
-            
-                    // Cập nhật bán kính 2 ô xung quanh thành vùng bom
-                    // for (let dr = -1; dr <= 1; dr++) {
-                    //     for (let dc = -1; dc <= 1; dc++) {
-                    //         const newRow = row + dr;
-                    //         const newCol = col + dc;
-            
-                    //         // Kiểm tra nếu vị trí mới nằm trong bản đồ
-                    //         if (
-                    //             newRow >= 0 &&
-                    //             newRow < this.map.length &&
-                    //             newCol >= 0 &&
-                    //             newCol < this.map[0].length
-                    //         ) {
-                    //             // Cập nhật vị trí xung quanh enemy thành MAP_CELL.BOMB_ZONE
-                    //             if (this.map[newRow][newCol] !== MAP_CELL.ENEMY) {
-                    //                 this.map[newRow][newCol] = MAP_CELL.BOMB_ZONE;
-                    //             }
-                    //         }
-                    //     }
-                    // }
+                    this.map[row][col] = MAP_CELL.ENEMY;
                 }
             });
             const nonChildEnemies = enemies.find(enemy => !enemy.id.endsWith('_child'));
@@ -113,13 +103,12 @@ class GameMap {
                 this.player = new GamePlayer(this, currentPlayer);
             }
 
-            // if(!this.marry && this.player.playerInfo.eternalBadge > 0) {
-            //     this.socket.emit('action', {							
-            //         "action": "marry wife"						
-            //     })	
-            //     this.marry = true						
-            // }
-
+            if(!this.marry && currentPlayer.eternalBadge > 0) {
+                this.socket.emit('action', {
+                    "action": "marry wife"						
+                })
+                this.marry = true						
+            }
 
             if (!this.player.playerInfo.hasTransform) {
 
@@ -164,7 +153,6 @@ class GameMap {
                 }
             }
             
-            
             // console.log(this.bombs)
             this.addBombs(res.map_info.bombs)
             this.removeExpiredBombs()
@@ -194,22 +182,6 @@ class GameMap {
                     return { type: EVENT_GAME.NO_ACTION, path: null };
                 }
             }
-
-            // if(this.marry) {
-            //     const childPlayer = res.map_info.players.find(p => this.playerIdChill == p.id);
-            //     if (childPlayer) {
-            //         const keepDistance = commonFunction.processEscape(
-            //             this.map, 
-            //             this.playerPosition(childPlayer.currentPosition.row, childPlayer.currentPosition.col),
-            //             this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col),
-            //             5
-            //         )
-            //         console.log(keepDistance)
-            //         if(keepDistance.needMove) {
-            //             return { type: EVENT_GAME.RUNNING, path: keepDistance.path, tick: "RUN KEEP DISTANCE" };
-            //         }
-            //     };
-            // }
             
             const spoildPath = this.findSpoilAndPath(this.map, this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col), res.map_info.spoils)
 
@@ -217,17 +189,17 @@ class GameMap {
                 return { type: EVENT_GAME.RUNNING, path: spoildPath.path, tick: "RUN GET PATH" };
             }
             // Đánh giá tình hình. Nếu đứng Gần địch thì Ném vũ khí thần. Trong khoảng 3-5 ô
-            // const checkCanUseSpecialWeapon = this.findEnemiesWithinRange(this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col), enemies);
+            const checkCanUseSpecialWeapon = this.findEnemiesWithinRange(this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col), enemies);
 
-            // if(
-            //     checkCanUseSpecialWeapon.canShot &&
-            //     this.player.playerInfo.timeToUseSpecialWeapons > 0 &&
-            //     this.enemyTransform &&
-            //     this.parentSkill
-            // )
-            // {
-            //     return { type: EVENT_GAME.USE_SPECIAL_SKILL, path: checkCanUseSpecialWeapon.target, tick: "USE_SPECIAL_SKILL" }; 
-            // }
+            if(
+                checkCanUseSpecialWeapon.canShot &&
+                this.player.playerInfo.timeToUseSpecialWeapons > 0 &&
+                this.enemyTransform &&
+                this.parentSkill
+            )
+            {
+                return { type: EVENT_GAME.USE_SPECIAL_SKILL, path: checkCanUseSpecialWeapon.target, tick: "USE_SPECIAL_SKILL" }; 
+            }
 
             // Đoạn này cần check nếu địch ở gần thì có thể đi đến đặt bomb và lùi lại. 
 
@@ -246,10 +218,7 @@ class GameMap {
                     return { type: EVENT_GAME.BOMBED, path: "b", tick: "BOMBED" };
                 }
             }
-            // if (!this.marry && this.player.playerInfo.eternalBadge > 0) {
-            //     this.marry = true;
-            //     return { type: EVENT_GAME.NO_ACTION, path: checkCanUseSpecialWeapon.target, tick: ":marry" };
-            // }
+
             return { type: EVENT_GAME.NO_ACTION, path: null, tick: "END" };
         } catch (error) {
             console.log(error)
@@ -261,7 +230,6 @@ class GameMap {
     }
     async parseTicktack(res) {
         const result = await this.checkingGameStatus(res)
-        console.log(result)
         if(result.type == EVENT_GAME.RUNNING) {
             this.emitDriver(SOCKET_EVENTS.DRIVE_PLAYER, result.path)
         }
@@ -287,8 +255,10 @@ class GameMap {
 
         
         if(result.type == EVENT_GAME.BOMBED) {
-            const bombPositionSlice = result.path ? result.path.slice(0, -1) : "";
-            this.emitDriver(SOCKET_EVENTS.DRIVE_PLAYER, bombPositionSlice+"b")
+            if(commonFunction.isPlayerIdNotInArray(res.map_info.bombs, this.playerId)) {
+                const bombPositionSlice = result.path ? result.path.slice(0, -1) : "";
+                this.emitDriver(SOCKET_EVENTS.DRIVE_PLAYER, bombPositionSlice+"b")
+            }
         }
     }
 
@@ -402,7 +372,7 @@ class GameMap {
         );
       
         // Kiểm tra nếu khoảng cách nằm trong khoảng [3, 5]
-        return distance >= 3 && distance <= 5;
+        return distance >= 2 && distance <= 5;
       };
       
     findEnemiesWithinRange = (playerPosition, enemies) => {
@@ -446,7 +416,7 @@ class GameMap {
     
             // Log trạng thái hiện tại
             // Nếu khoảng cách đến MAP_CELL.BALK <= power, trả về vị trí hiện tại
-            if (this.map[row][col] == MAP_CELL.BALK) {
+            if (this.map[row][col] == MAP_CELL.BALK || this.map[row][col] == MAP_CELL.ENEMY) {
                 return path; // Trả về chuỗi các bước đi
             }
     
@@ -483,7 +453,7 @@ class GameMap {
     addBombs(newBombs) {
         newBombs.forEach(newBomb => {
             // Tạo giá trị `createdAt` đã được cộng thêm 500
-            const adjustedCreatedAt = newBomb.createdAt + 200;
+            const adjustedCreatedAt = newBomb.createdAt + 300;
     
             // Kiểm tra nếu `createdAt` đã tồn tại trong mảng
             const exists = this.bombs.some(bomb => bomb.createdAt === adjustedCreatedAt);
@@ -526,7 +496,7 @@ class GameMap {
             const { row, col, power, createdAt } = bomb;
     
             // Kiểm tra điều kiện thời gian
-            if (currentTime - createdAt >= 15) {
+            if (currentTime - createdAt >= 30) {
                 // Đánh dấu vị trí quả bom
                 this.map[row][col] = MAP_CELL.BOMB_ZONE;
     

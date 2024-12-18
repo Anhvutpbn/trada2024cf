@@ -86,6 +86,12 @@ class CommonFunction {
 
         return result;
     }
+
+
+    // Kiểm tra không còn bomb trên bản đồ của bản thân
+    isPlayerIdNotInArray(array, playerId) {
+        return !array.some(item => item.playerId === playerId);
+      }
 }
 
 export { CommonFunction };
