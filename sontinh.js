@@ -40,19 +40,7 @@ const gameMap = new GameMap(socket, playerId);
 const gameMapChild = new GameMapChild(socket, playerId)
 socket.on('ticktack player', (res) => {
 
-    setImmediate(() => {
-        try {
-            gameMap.parseTicktack(res);
-        } catch (error) {
-            console.error("Task 1 failed:", error);
-        }
-    });
-
-    // setImmediate(() => {
-    //     try {
-    //         gameMapChild.parseTicktack(res);
-    //     } catch (error) {
-    //         console.error("Task 2 failed:", error);
-    //     }
-    // });
+    gameMap.handleTicktack(res);
+    gameMapChild.handleTicktack(res);
+       
 });

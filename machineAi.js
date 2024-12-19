@@ -51,8 +51,18 @@ class GameMap {
         this.parentSkill = true;
         this.marry = false;
         this.powerPlayer = 1;
-        this.baby = false;
         this.canKillAfterStun = 0
+    }
+
+    handleTicktack(res) {
+        setImmediate(() => {
+            try {
+                this.parseTicktack(res);
+                console.log("[GameMap] Error in parseTicktack:");
+            } catch (error) {
+                console.error("[GameMap] Error in parseTicktack:", error);
+            }
+        });
     }
     
     async checkingGameStatus(res) {
@@ -68,35 +78,20 @@ class GameMap {
                 console.log("--- exeption")
             };
 
-            // const baby = res.map_info.players.find(p => this.playerIdChill == p.id);
-            // if (baby) {
-                // this.map[baby.currentPosition.row][baby.currentPosition.col] = "MAP_CELL.BOMB_ZONE"
-                // this.map[baby.currentPosition.row - 2][baby.currentPosition.col] = MAP_CELL.BOMB_ZONE
-                // this.map[baby.currentPosition.row - 1][baby.currentPosition.col] = MAP_CELL.BOMB_ZONE
-                // this.map[baby.currentPosition.row + 1][baby.currentPosition.col] = MAP_CELL.BOMB_ZONE
-                // this.map[baby.currentPosition.row + 2][baby.currentPosition.col] = MAP_CELL.BOMB_ZONE
-                // this.map[baby.currentPosition.row][baby.currentPosition.col - 2] = MAP_CELL.BOMB_ZONE
-                // this.map[baby.currentPosition.row][baby.currentPosition.col - 1] = MAP_CELL.BOMB_ZONE
-                // this.map[baby.currentPosition.row][baby.currentPosition.col + 1] = MAP_CELL.BOMB_ZONE
-                // this.map[baby.currentPosition.row][baby.currentPosition.col + 2] = MAP_CELL.BOMB_ZONE
-            // };
             // Update enemy positions on the map
             const enemies = res.map_info.players.filter(p => p.id !== this.playerId && p.id !== this.playerIdChill);
             enemies.forEach(enemy => {
                 if (enemy?.currentPosition && enemies.length >=2 ) {
                     const { row, col } = enemy.currentPosition;
-                        console.log("--------------------------------1")
                     // Đặt vị trí hiện tại của enemy là MAP_CELL.ENEMY
                     this.map[row][col] = MAP_CELL.ENEMY;
                 }
                 if (enemy?.currentPosition && enemies.length == 1 &&  enemy?.hasTransform) {
                     const { row, col } = enemy.currentPosition;
-                    console.log("--------------------------------2")
                     // Đặt vị trí hiện tại của enemy là MAP_CELL.ENEMY
                     this.map[row][col] = MAP_CELL.ENEMY;
                 } 
                 if (enemy?.currentPosition && enemies.length == 1 &&  !enemy?.hasTransform) {
-                    console.log("--------------------------------3")
                     const { row, col } = enemy.currentPosition;
                     this.map[row][col] = MAP_CELL.BORDER;
                 }
@@ -114,12 +109,13 @@ class GameMap {
                 this.player = new GamePlayer(this, currentPlayer);
             }
 
-            if(!this.marry && currentPlayer.eternalBadge > 0) {
+            if(!this.marry && currentPlayer.eternalBadge > 0 && res.gameRemainTime <= 120 ) {
                 this.socket.emit('action', {
                     "action": "marry wife"						
                 })
                 this.marry = true						
             }
+            
 
             if (!this.player.playerInfo.hasTransform) {
 
@@ -143,17 +139,17 @@ class GameMap {
                 const findPathStoppingAtThree = this.findPathStoppingAtThree(this.map, [currentPlayer.currentPosition.row, currentPlayer.currentPosition.col]);
                 if (findPathStoppingAtThree.type === EVENT_GAME.RUNNING || !this.isMoving) {
                     this.isMoving = true;
-                    console.log("-tick 1")
+                    // console.log("-tick 1")
                     return { type: EVENT_GAME.RUNNING, path: findPathStoppingAtThree.path , tick: 1};
                 }
                 if (findPathStoppingAtThree.type === EVENT_GAME.RUNNING || !this.isMoving) {
                     this.isMoving = true;
-                    console.log("-tick 2")
+                    // console.log("-tick 2")
                     return { type: EVENT_GAME.RUNNING, path: findPathStoppingAtThree.path, tick: 2 };
                 }
                 if (findPathStoppingAtThree.type === EVENT_GAME.RUNNING || !this.isMoving) {
                     this.isMoving = true;
-                    console.log("-tick 3")
+                    // console.log("-tick 3")
                     return { type: EVENT_GAME.NO_ACTION, path: null, tick: 3 };
                 }
 
@@ -164,7 +160,6 @@ class GameMap {
                 }
             }
             
-            // console.log(this.bombs)
             this.addBombs(res.map_info.bombs)
             this.removeExpiredBombs()
             this.replaceBombExplosionOnMap()
@@ -172,18 +167,12 @@ class GameMap {
             if(res.map_info.weaponHammers.length > 0) {
                 this.updateMapWithICBM(res.map_info.weaponHammers, MAP_CELL.BOMB_ZONE)
             }
-            // if (res.map_info.weaponWinds != undefined && res.map_info.weaponWinds && res.map_info.weaponWinds.length > 0) {
-            //     const weaponWindsComming = this.isInDanger(res.map_info.weaponWinds,  this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col))
-            //     if(weaponWindsComming) {
-            //         // console.log("--------------",this.findSafePath(this.map, res.map_info.weaponWinds))
-            //     }
-            // }
-            this.printMap2DV2(this.map)
+
+            // this.printMap2DV2(this.map)
             
              
             // Neu dang trong vung bomb thi ne
             if(this.map[currentPlayer.currentPosition.row][currentPlayer.currentPosition.col] == MAP_CELL.BOMB_ZONE) {
-                console.log("------RUN BOMB THOI AE OI--------")
                 const runningPath = this.findEscapePath(this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col))
                 if(runningPath) {
                     return { type: EVENT_GAME.RUNNING, path: runningPath, tick: "RUN BOMB AWAY" };
@@ -208,7 +197,6 @@ class GameMap {
             if(res.tag == "player:stun-by-weapon" && res.player_id != this.playerId && res.player_id != this.playerIdChill) {
                 this.canKillAfterStun = Date.now()
                 if(currentPlayer.currentWeapon !== 2) {
-                    console.log("_________player:stun-by-weapon_________")
                     await this.socket.emit('action', { action: "switch weapon" });
                 }
                 const pathMove = this.moveTwoStepsRandomly(this.map, this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col))
@@ -243,9 +231,7 @@ class GameMap {
                     )) {
                         const currentDateTime = Date.now()
                         const compareTime = currentDateTime - this.canKillAfterStun
-                        console.log("currentDateTime - this.canKillAfterStun", compareTime)
                         if(currentPlayer.currentWeapon == 2) {
-                            console.log("_________TO TO BOMB_________")
                             if( 900 <= compareTime  && compareTime <= 2000) {
                                 this.canKillAfterStun = 0
                                 return { type: EVENT_GAME.RUNNING, path: this.processString(pathToEnemy), tick: "RUN KILL MOD" };
@@ -259,7 +245,6 @@ class GameMap {
                 // Neu path =1 thi dang doi dau roi. Se chuyen sang bua va B sau do chuyen sang bomb
                 if(pathToEnemy.length > 1) {
                     if(currentPlayer.currentWeapon !== 2) {
-                        console.log("_________K_________")
                         this.socket.emit('action', { action: "switch weapon" });
                     }
                     return { type: EVENT_GAME.RUNNING, path: pathToEnemy, tick: "RUN KILL MOD" };
@@ -268,7 +253,6 @@ class GameMap {
                 // chuyen vu khi
                 if(currentPlayer.currentWeapon == 2) {
                     this.socket.emit('action', { action: "switch weapon" });
-                    console.log("Doi Vu khi CHAY")
                     return { type: EVENT_GAME.NO_ACTION, path: null };
                 } else {
                     await this.socket.emit(SOCKET_EVENTS.DRIVE_PLAYER, { direction: pathToEnemy });
@@ -318,7 +302,6 @@ class GameMap {
     }
     async parseTicktack(res) {
         const result = await this.checkingGameStatus(res)
-        console.log("result", result)
         if(result.type == EVENT_GAME.RUNNING) {
             this.emitDriver(SOCKET_EVENTS.DRIVE_PLAYER, result.path)
         }
@@ -357,7 +340,6 @@ class GameMap {
     }
 
     processString(a) {
-        console.log("----", a)
         if (!a) { 
             // Nếu a rỗng, gán a = b
             a = "b";
@@ -871,9 +853,8 @@ class GameMap {
     
     // Main logic
     findSpoilAndPath(map, playerPosition, spoils) {
-        this.printMap2DV2(map)
         // Kiểm tra vật phẩm trong bán kính 5
-        const nearbySpoils = this.isWithinRadius(playerPosition, spoils, 7);
+        const nearbySpoils = this.isWithinRadius(playerPosition, spoils, 30);
     
         if (nearbySpoils.length === 0) {
             return null;
