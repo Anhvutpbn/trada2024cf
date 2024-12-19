@@ -51,7 +51,8 @@ class GameMap {
         this.parentSkill = true;
         this.marry = false;
         this.powerPlayer = 1;
-        this.baby = false
+        this.baby = false;
+        this.canKillAfterStun = 0
     }
     
     async checkingGameStatus(res) {
@@ -67,8 +68,8 @@ class GameMap {
                 console.log("--- exeption")
             };
 
-            const baby = res.map_info.players.find(p => this.playerIdChill == p.id);
-            if (baby) {
+            // const baby = res.map_info.players.find(p => this.playerIdChill == p.id);
+            // if (baby) {
                 // this.map[baby.currentPosition.row][baby.currentPosition.col] = "MAP_CELL.BOMB_ZONE"
                 // this.map[baby.currentPosition.row - 2][baby.currentPosition.col] = MAP_CELL.BOMB_ZONE
                 // this.map[baby.currentPosition.row - 1][baby.currentPosition.col] = MAP_CELL.BOMB_ZONE
@@ -78,15 +79,26 @@ class GameMap {
                 // this.map[baby.currentPosition.row][baby.currentPosition.col - 1] = MAP_CELL.BOMB_ZONE
                 // this.map[baby.currentPosition.row][baby.currentPosition.col + 1] = MAP_CELL.BOMB_ZONE
                 // this.map[baby.currentPosition.row][baby.currentPosition.col + 2] = MAP_CELL.BOMB_ZONE
-            };
+            // };
             // Update enemy positions on the map
             const enemies = res.map_info.players.filter(p => p.id !== this.playerId && p.id !== this.playerIdChill);
             enemies.forEach(enemy => {
-                if (enemy?.currentPosition) {
+                if (enemy?.currentPosition && enemies.length >=2 ) {
                     const { row, col } = enemy.currentPosition;
-            
+                        console.log("--------------------------------1")
                     // Đặt vị trí hiện tại của enemy là MAP_CELL.ENEMY
                     this.map[row][col] = MAP_CELL.ENEMY;
+                }
+                if (enemy?.currentPosition && enemies.length == 1 &&  enemy?.hasTransform) {
+                    const { row, col } = enemy.currentPosition;
+                    console.log("--------------------------------2")
+                    // Đặt vị trí hiện tại của enemy là MAP_CELL.ENEMY
+                    this.map[row][col] = MAP_CELL.ENEMY;
+                } 
+                if (enemy?.currentPosition && enemies.length == 1 &&  !enemy?.hasTransform) {
+                    console.log("--------------------------------3")
+                    const { row, col } = enemy.currentPosition;
+                    this.map[row][col] = MAP_CELL.BORDER;
                 }
             });
             const nonChildEnemies = enemies.find(enemy => !enemy.id.endsWith('_child'));
@@ -156,7 +168,7 @@ class GameMap {
             this.addBombs(res.map_info.bombs)
             this.removeExpiredBombs()
             this.replaceBombExplosionOnMap()
-            console.log(this.bombs, this.map[currentPlayer.currentPosition.row][currentPlayer.currentPosition.col])
+
             if(res.map_info.weaponHammers.length > 0) {
                 this.updateMapWithICBM(res.map_info.weaponHammers, MAP_CELL.BOMB_ZONE)
             }
@@ -166,12 +178,8 @@ class GameMap {
             //         // console.log("--------------",this.findSafePath(this.map, res.map_info.weaponWinds))
             //     }
             // }
-            // this.printMap2DV2(this.map)
-            if(this.player.playerInfo.currentWeapon !== 2) {
-                this.socket.emit('action', { action: "switch weapon" });
-                // console.log("Doi Vu khi Chinh")
-                return { type: EVENT_GAME.NO_ACTION, path: null, tick: "change weapon" };
-            }
+            this.printMap2DV2(this.map)
+            
              
             // Neu dang trong vung bomb thi ne
             if(this.map[currentPlayer.currentPosition.row][currentPlayer.currentPosition.col] == MAP_CELL.BOMB_ZONE) {
@@ -194,17 +202,19 @@ class GameMap {
                 // Vu khi dang roi
             }
 
-            // Kill mode
-            // const pathToEnemy = this.checkPathToEnemy(this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col), this.map)
-            // console.log("pathToEnemy", pathToEnemy)
-            // if(pathToEnemy) {
-            //     return { type: EVENT_GAME.RUNNING, path: pathToEnemy, tick: "RUN KILL MOD" };
-            // }
-            const spoildPath = this.findSpoilAndPath(this.map, this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col), res.map_info.spoils)
+            // Kiem tra neu gan dich thi trien khai combo. Doi vu  khi. Dap choang
+            // Neu dung gan dich trong khoang 2 o thi doi vu khi sang 1. Sau do tiep can va dap choang. Neu player enemy bi choang. Se doi vu khi sang 2 va tha bomb. Neu cach nhau 3 o se doi lai vu khi sang bomb. Neu o gan 2 player thi khong doi vu khi. 
 
-            if(spoildPath) {
-                return { type: EVENT_GAME.RUNNING, path: spoildPath.path, tick: "RUN GET PATH" };
+            if(res.tag == "player:stun-by-weapon" && res.player_id != this.playerId && res.player_id != this.playerIdChill) {
+                this.canKillAfterStun = Date.now()
+                if(currentPlayer.currentWeapon !== 2) {
+                    console.log("_________player:stun-by-weapon_________")
+                    await this.socket.emit('action', { action: "switch weapon" });
+                }
+                const pathMove = this.moveTwoStepsRandomly(this.map, this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col))
+                return { type: EVENT_GAME.RUNNING, path: pathMove.path, tick: "Run  away" };
             }
+            
             // Đánh giá tình hình. Nếu đứng Gần địch thì Ném vũ khí thần. Trong khoảng 3-5 ô
             const checkCanUseSpecialWeapon = this.findEnemiesWithinRange(this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col), enemies);
 
@@ -218,6 +228,67 @@ class GameMap {
                 return { type: EVENT_GAME.USE_SPECIAL_SKILL, path: checkCanUseSpecialWeapon.target, tick: "USE_SPECIAL_SKILL" }; 
             }
 
+
+
+            // Kill mode
+            const pathToEnemy = this.checkPathToEnemy(this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col), this.map)
+            if(pathToEnemy) {
+
+                // Kiem tra neu enemy ma stun thi dat bomb
+                const stuned = enemies.find(p => p.isStun == true);
+                if(stuned) {
+                    if(this.isWithinRadiusKillMod(
+                        this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col),
+                        this.playerPosition(stuned.currentPosition.row, stuned.currentPosition.col),
+                    )) {
+                        const currentDateTime = Date.now()
+                        const compareTime = currentDateTime - this.canKillAfterStun
+                        console.log("currentDateTime - this.canKillAfterStun", compareTime)
+                        if(currentPlayer.currentWeapon == 2) {
+                            console.log("_________TO TO BOMB_________")
+                            if( 900 <= compareTime  && compareTime <= 2000) {
+                                this.canKillAfterStun = 0
+                                return { type: EVENT_GAME.RUNNING, path: this.processString(pathToEnemy), tick: "RUN KILL MOD" };
+                            } else {
+                                return { type: EVENT_GAME.NO_ACTION, path: null };
+                            }
+                            
+                        }
+                    }
+                }
+                // Neu path =1 thi dang doi dau roi. Se chuyen sang bua va B sau do chuyen sang bomb
+                if(pathToEnemy.length > 1) {
+                    if(currentPlayer.currentWeapon !== 2) {
+                        console.log("_________K_________")
+                        this.socket.emit('action', { action: "switch weapon" });
+                    }
+                    return { type: EVENT_GAME.RUNNING, path: pathToEnemy, tick: "RUN KILL MOD" };
+                }
+                
+                // chuyen vu khi
+                if(currentPlayer.currentWeapon == 2) {
+                    this.socket.emit('action', { action: "switch weapon" });
+                    console.log("Doi Vu khi CHAY")
+                    return { type: EVENT_GAME.NO_ACTION, path: null };
+                } else {
+                    await this.socket.emit(SOCKET_EVENTS.DRIVE_PLAYER, { direction: pathToEnemy });
+                    return { type: EVENT_GAME.RUNNING, path: "b" };
+                }
+
+            } else {
+                if(this.player.playerInfo.currentWeapon !== 2) {
+                    this.socket.emit('action', { action: "switch weapon" });
+                    // console.log("Doi Vu khi Chinh")
+                    return { type: EVENT_GAME.NO_ACTION, path: null, tick: "change weapon" };
+                }
+            }
+
+            const spoildPath = this.findSpoilAndPath(this.map, this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col), res.map_info.spoils)
+
+            if(spoildPath) {
+                return { type: EVENT_GAME.RUNNING, path: spoildPath.path, tick: "RUN GET PATH" };
+            }
+            
             // Đoạn này cần check nếu địch ở gần thì có thể đi đến đặt bomb và lùi lại. 
 
             // Sau khi không có địch thì ta có thể đi farm box. 
@@ -268,7 +339,7 @@ class GameMap {
             this.parentSkill = false
             setTimeout(() => {
                 this.parentSkill = true 
-            }, 10000);
+            }, 7000);
         }
 
         
@@ -280,6 +351,25 @@ class GameMap {
         }
     }
 
+    isWithinRadiusKillMod(player1Position, player2Position, radius = 3) {
+        const distance = Math.abs(player1Position.row - player2Position.row) + Math.abs(player1Position.col - player2Position.col);
+        return distance <= radius;
+    }
+
+    processString(a) {
+        console.log("----", a)
+        if (!a) { 
+            // Nếu a rỗng, gán a = b
+            a = "b";
+        } else if (a.length === 1) { 
+            // Nếu a có 1 ký tự, gán a = b
+            a = "b";
+        } else { 
+            // Nếu a có giá trị nhiều hơn 1 ký tự, thêm 'b' vào cuối
+            a = a.slice(0, -1) + 'b';
+        }
+        return a;
+    }
     playerPosition(x, y) {
         return { row: x, col: y };
     }
@@ -502,7 +592,7 @@ class GameMap {
             { dr: 1, dc: 0 },  // Xuống
         ];
     
-        const blockCells = [MAP_CELL.BORDER, MAP_CELL.BRICK_WALL, MAP_CELL.JAIL, MAP_CELL.BALK];
+        const blockCells = [MAP_CELL.BORDER, MAP_CELL.BRICK_WALL, MAP_CELL.JAIL, MAP_CELL.BALK, MAP_CELL.ENEMY];
     
         // Lấy thời gian hiện tại
         const currentTime = Date.now();
@@ -589,7 +679,8 @@ class GameMap {
                     this.map[newRow][newCol] !== MAP_CELL.JAIL && // Không đi vào vùng bom
                     this.map[newRow][newCol] !== MAP_CELL.BORDER && // Không đi vào ranh giới
                     this.map[newRow][newCol] !== MAP_CELL.BALK && // Không đi vào chướng ngại vật
-                    this.map[newRow][newCol] !== MAP_CELL.BRICK_WALL // Không đi vào tường gạch
+                    this.map[newRow][newCol] !== MAP_CELL.BRICK_WALL &&// Không đi vào tường gạch
+                    this.map[newRow][newCol] !== MAP_CELL.ENEMY // Không đi vào tường gạch
                 ) {
                     queue.push({
                         row: newRow,
@@ -906,6 +997,85 @@ class GameMap {
       
         return { type: EVENT_GAME.NO_ACTION, path: null };
     };
+
+    moveTwoStepsRandomly(map, playerPosition) {
+        const directions = {
+            [MOVE_DIRECTION.LEFT]: { dr: 0, dc: -1 },
+            [MOVE_DIRECTION.RIGHT]: { dr: 0, dc: 1 },
+            [MOVE_DIRECTION.UP]: { dr: -1, dc: 0 },
+            [MOVE_DIRECTION.DOWN]: { dr: 1, dc: 0 }
+        };
+    
+        const validDirections = [];
+    
+        // Kiểm tra các hướng hợp lệ
+        for (const [direction, move] of Object.entries(directions)) {
+            let currentRow = playerPosition.row;
+            let currentCol = playerPosition.col;
+    
+            let isValid = true;
+            for (let step = 1; step <= 2; step++) {
+                const newRow = currentRow + move.dr;
+                const newCol = currentCol + move.dc;
+    
+                // Kiểm tra nếu ô hợp lệ
+                if (
+                    newRow >= 0 &&
+                    newRow < map.length &&
+                    newCol >= 0 &&
+                    newCol < map[0].length &&
+                    (map[newRow][newCol] === MAP_CELL.ROAD || map[newRow][newCol] === MAP_CELL.SPOILS)
+                ) {
+                    currentRow = newRow;
+                    currentCol = newCol;
+                } else {
+                    isValid = false;
+                    break;
+                }
+            }
+    
+            if (isValid) {
+                validDirections.push(direction);
+            }
+        }
+    
+        // Nếu không có hướng nào hợp lệ
+        if (validDirections.length === 0) {
+            console.log("No valid directions to move.");
+            return { row: playerPosition.row, col: playerPosition.col, path: "" };
+        }
+    
+        // Chọn một hướng ngẫu nhiên từ các hướng hợp lệ
+        const randomDirection = validDirections[Math.floor(Math.random() * validDirections.length)];
+        const move = directions[randomDirection];
+    
+        let currentRow = playerPosition.row;
+        let currentCol = playerPosition.col;
+        let path = "";
+    
+        // Di chuyển 2 bước theo hướng ngẫu nhiên
+        for (let step = 1; step <= 2; step++) {
+            const newRow = currentRow + move.dr;
+            const newCol = currentCol + move.dc;
+    
+            if (
+                newRow >= 0 &&
+                newRow < map.length &&
+                newCol >= 0 &&
+                newCol < map[0].length &&
+                (map[newRow][newCol] === MAP_CELL.ROAD || map[newRow][newCol] === MAP_CELL.SPOILS)
+            ) {
+                currentRow = newRow;
+                currentCol = newCol;
+                path += randomDirection;
+            } else {
+                break;
+            }
+        }
+    
+        return { row: currentRow, col: currentCol, path };
+    }
+    
 }
 
 export { GameMap };
