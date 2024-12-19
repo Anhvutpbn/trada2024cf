@@ -172,7 +172,7 @@ class GameMap {
                 // console.log("Doi Vu khi Chinh")
                 return { type: EVENT_GAME.NO_ACTION, path: null, tick: "change weapon" };
             }
-
+             
             // Neu dang trong vung bomb thi ne
             if(this.map[currentPlayer.currentPosition.row][currentPlayer.currentPosition.col] == MAP_CELL.BOMB_ZONE) {
                 console.log("------RUN BOMB THOI AE OI--------")
@@ -184,6 +184,22 @@ class GameMap {
                 }
             }
             
+            // Kiem tra neu co bua tren ban do thi di nhat
+            const weaponPlaces = res.map_info.weaponPlaces.find(p => this.playerId == p.playerId);
+            if(weaponPlaces) {
+                const pathToGetWeapon = this.findPathWeaponDroped(this.map, [currentPlayer.currentPosition.row, currentPlayer.currentPosition.col], weaponPlaces)
+                if(pathToGetWeapon.path) {
+                    return { type: EVENT_GAME.RUNNING, path: pathToGetWeapon.path, tick: "RUN TO GET WEAPON" };
+                }
+                // Vu khi dang roi
+            }
+
+            // Kill mode
+            // const pathToEnemy = this.checkPathToEnemy(this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col), this.map)
+            // console.log("pathToEnemy", pathToEnemy)
+            // if(pathToEnemy) {
+            //     return { type: EVENT_GAME.RUNNING, path: pathToEnemy, tick: "RUN KILL MOD" };
+            // }
             const spoildPath = this.findSpoilAndPath(this.map, this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col), res.map_info.spoils)
 
             if(spoildPath) {
@@ -231,6 +247,7 @@ class GameMap {
     }
     async parseTicktack(res) {
         const result = await this.checkingGameStatus(res)
+        console.log("result", result)
         if(result.type == EVENT_GAME.RUNNING) {
             this.emitDriver(SOCKET_EVENTS.DRIVE_PLAYER, result.path)
         }
@@ -340,7 +357,7 @@ class GameMap {
         }
       
         return { type: EVENT_GAME.NO_ACTION, path: null };
-      };
+    };
 
     hasValueThree(x, y) {
         return (
@@ -472,7 +489,7 @@ class GameMap {
         const currentTimestamp = Date.now();
         this.bombs = this.bombs.filter(bomb => {
             console.log(currentTimestamp - bomb.created_date_local)
-            return currentTimestamp - bomb.created_date_local <= 2250;
+            return currentTimestamp - bomb.created_date_local <= 3000; 
         });
     }
     
@@ -763,6 +780,7 @@ class GameMap {
     
     // Main logic
     findSpoilAndPath(map, playerPosition, spoils) {
+        this.printMap2DV2(map)
         // Kiểm tra vật phẩm trong bán kính 5
         const nearbySpoils = this.isWithinRadius(playerPosition, spoils, 7);
     
@@ -781,6 +799,113 @@ class GameMap {
         return null;
     }
 
+    checkPathToEnemy(playerPosition, map) {
+        const directions = [
+            { dr: 0, dc: -1, move: MOVE_DIRECTION.LEFT },  // Trái
+            { dr: 0, dc: 1, move: MOVE_DIRECTION.RIGHT }, // Phải
+            { dr: -1, dc: 0, move: MOVE_DIRECTION.UP },   // Lên
+            { dr: 1, dc: 0, move: MOVE_DIRECTION.DOWN },  // Xuống
+        ];
+
+        const radius = 10; // Bán kính tối đa
+        const queue = [{ row: playerPosition.row, col: playerPosition.col, path: "" }];
+        const visited = Array.from({ length: map.length }, () =>
+            Array(map[0].length).fill(false)
+        );
+        visited[playerPosition.row][playerPosition.col] = true;
+
+        while (queue.length > 0) {
+            const { row, col, path } = queue.shift();
+
+            // Nếu đến vị trí địch (MAP_CELL.ENEMY), trả về đường đi
+            if (map[row][col] === MAP_CELL.ENEMY) {
+                return path;
+            }
+
+            // Duyệt các hướng
+            for (const { dr, dc, move } of directions) {
+                const newRow = row + dr;
+                const newCol = col + dc;
+                const distance = Math.abs(playerPosition.row - newRow) + Math.abs(playerPosition.col - newCol);
+
+                // Kiểm tra điều kiện hợp lệ của tọa độ mới
+                if (
+                    newRow >= 0 &&
+                    newRow < map.length &&
+                    newCol >= 0 &&
+                    newCol < map[0].length &&
+                    !visited[newRow][newCol] &&
+                    distance <= radius && // Chỉ tính trong bán kính 10 ô
+                    (map[newRow][newCol] === MAP_CELL.ROAD || map[newRow][newCol] === MAP_CELL.ENEMY)
+                ) {
+                    queue.push({ row: newRow, col: newCol, path: path + move });
+                    visited[newRow][newCol] = true; // Đánh dấu đã thăm
+                }
+            }
+        }
+
+        return null; // Không tìm được đường đi
+    }
+
+
+    findPathWeaponDroped = (grid, start, destination) => {
+        const directions = [
+          [1, 0, '4'],  // Xuống
+          [0, -1, '1'], // Trái
+          [0, 1, '2'],  // Phải
+          [-1, 0, '3'], // Lên
+        ];
+      
+        const isValid = (x, y, visited) => {
+          const rows = grid.length;
+          const cols = grid[0].length;
+          return (
+            x >= 0 &&
+            x < rows &&
+            y >= 0 &&
+            y < cols &&
+            !visited[x][y] &&
+            (grid[x][y] === 0 || (x == destination.row && y == destination.col))
+          );
+        };
+      
+        const queue = [[start[0], start[1], []]]; // [row, col, path[]]
+        const visited = Array.from({ length: grid.length }, () =>
+          Array(grid[0].length).fill(false)
+        );
+        visited[start[0]][start[1]] = true;
+      
+        while (queue.length > 0) {
+          const [x, y, path] = queue.shift();
+      
+          // Nếu gặp ô bua
+          if (x == destination.row && y == destination.col) {
+            const fullPath = [...path, { move: null, value: 6, row: x, col: y }];
+            const stoppingPath = [];
+            for (const step of fullPath) {
+              if (step.move) stoppingPath.push(step.move);
+            }
+            return { type: EVENT_GAME.RUNNING, path: stoppingPath.join('') };
+          }
+      
+          // Duyệt các hướng
+          for (const [dx, dy, action] of directions) {
+            const nx = x + dx;
+            const ny = y + dy;
+      
+            if (isValid(nx, ny, visited)) {
+              queue.push([
+                nx,
+                ny,
+                [...path, { move: action, value: grid[x][y], row: x, col: y }],
+              ]);
+              visited[nx][ny] = true;
+            }
+          }
+        }
+      
+        return { type: EVENT_GAME.NO_ACTION, path: null };
+    };
 }
 
 export { GameMap };

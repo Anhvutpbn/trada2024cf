@@ -1,7 +1,7 @@
 // Server Configuration
 export const SERVER_CONFIG = {
-    API_SERVER: 'http://192.168.1.91/',
-    GAME_ID: 'b8c59ed4-8bfa-4525-a5a9-258343f9fb9a',
+    API_SERVER: 'http://192.168.1.101/',
+    GAME_ID: 'a84b3a47-d65b-4060-9ebe-8b2e42215077',
     PLAYER_ID: 'player1-xxx',
     PLAYER_ID_JOIN_GAME: 'player1-xxx',
     SOCKET_OPTIONS: {
@@ -29,7 +29,8 @@ export const MAP_CELL = {
     SPECIAL_ZONE: 7,  // Vùng đất bị phá hủy bởi vũ khí đặc biệt
     BOMB_ZONE: "B",
     SPOILS: "A",       // Giá trị đại diện cho vật phẩm
-    ENEMY: "E"
+    ENEMY: "E",
+    WEAPON: "W"
 };
 
 // Movement Directions
