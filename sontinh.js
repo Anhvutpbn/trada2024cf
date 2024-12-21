@@ -39,7 +39,6 @@ socket.on('join game', (res) => {
 const gameMap = new GameMap(socket, playerId);
 const gameMapChild = new GameMapChild(socket, playerId)
 socket.on('ticktack player', (res) => {
-
     gameMap.handleTicktack(res);
     gameMapChild.handleTicktack(res);
        

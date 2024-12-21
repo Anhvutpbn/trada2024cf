@@ -80,6 +80,7 @@ class GameMap {
 
             // Update enemy positions on the map
             const enemies = res.map_info.players.filter(p => p.id !== this.playerId && p.id !== this.playerIdChill);
+            
             enemies.forEach(enemy => {
                 if (enemy?.currentPosition && enemies.length >=2 ) {
                     const { row, col } = enemy.currentPosition;
@@ -167,10 +168,7 @@ class GameMap {
             if(res.map_info.weaponHammers.length > 0) {
                 this.updateMapWithICBM(res.map_info.weaponHammers, MAP_CELL.BOMB_ZONE)
             }
-
             // this.printMap2DV2(this.map)
-            
-             
             // Neu dang trong vung bomb thi ne
             if(this.map[currentPlayer.currentPosition.row][currentPlayer.currentPosition.col] == MAP_CELL.BOMB_ZONE) {
                 const runningPath = this.findEscapePath(this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col))
@@ -184,9 +182,15 @@ class GameMap {
             // Kiem tra neu co bua tren ban do thi di nhat
             const weaponPlaces = res.map_info.weaponPlaces.find(p => this.playerId == p.playerId);
             if(weaponPlaces) {
-                const pathToGetWeapon = this.findPathWeaponDroped(this.map, [currentPlayer.currentPosition.row, currentPlayer.currentPosition.col], weaponPlaces)
-                if(pathToGetWeapon.path) {
-                    return { type: EVENT_GAME.RUNNING, path: pathToGetWeapon.path, tick: "RUN TO GET WEAPON" };
+                const isPositionAvailable = !enemies.some(player => 
+                    player.currentPosition.col === weaponPlaces.col &&
+                    player.currentPosition.row === weaponPlaces.row
+                  );
+                if(isPositionAvailable) {
+                    const pathToGetWeapon = this.findPathWeaponDroped(this.map, [currentPlayer.currentPosition.row, currentPlayer.currentPosition.col], weaponPlaces)
+                    if(pathToGetWeapon.path) {
+                        return { type: EVENT_GAME.RUNNING, path: pathToGetWeapon.path, tick: "RUN TO GET WEAPON" };
+                    }
                 }
                 // Vu khi dang roi
             }
@@ -560,7 +564,6 @@ class GameMap {
     removeExpiredBombs() {
         const currentTimestamp = Date.now();
         this.bombs = this.bombs.filter(bomb => {
-            console.log(currentTimestamp - bomb.created_date_local)
             return currentTimestamp - bomb.created_date_local <= 3000; 
         });
     }

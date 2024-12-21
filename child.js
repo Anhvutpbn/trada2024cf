@@ -97,6 +97,7 @@ class GameMapChild {
             const currentPlayer = res.map_info.players.find(p => this.playerId == p.id);
             if (!currentPlayer) {
                 console.log("--- exeption")
+                return { type: EVENT_GAME.NO_ACTION, path: null, tick: "--- exeption" };
             };
 
             // Update enemy positions on the map
@@ -132,10 +133,10 @@ class GameMapChild {
                 this.player = new GamePlayerChild(this, currentPlayer);
             }
 
-            this.addBombs(res.map_info.bombs)
-            this.removeExpiredBombs()
-            this.replaceBombExplosionOnMap()
-
+            // this.addBombs(res.map_info.bombs)
+            // this.removeExpiredBombs()
+            // this.replaceBombExplosionOnMap()
+            this.printMap2DV2(this.map)
             if(res.map_info.weaponHammers.length > 0) {
                 this.updateMapWithICBM(res.map_info.weaponHammers, MAP_CELL.BOMB_ZONE)
             }
@@ -153,9 +154,15 @@ class GameMapChild {
             // Kiem tra neu co bua tren ban do thi di nhat
             const weaponPlaces = res.map_info.weaponPlaces.find(p => this.playerId == p.playerId);
             if(weaponPlaces) {
-                const pathToGetWeapon = this.findPathWeaponDroped(this.map, [currentPlayer.currentPosition.row, currentPlayer.currentPosition.col], weaponPlaces)
-                if(pathToGetWeapon.path) {
-                    return { type: EVENT_GAME.RUNNING, path: pathToGetWeapon.path, tick: "RUN TO GET WEAPON" };
+                const isPositionAvailable = !enemies.some(player => 
+                    player.currentPosition.col === weaponPlaces.col &&
+                    player.currentPosition.row === weaponPlaces.row
+                );
+                if(isPositionAvailable) {
+                    const pathToGetWeapon = this.findPathWeaponDroped(this.map, [currentPlayer.currentPosition.row, currentPlayer.currentPosition.col], weaponPlaces)
+                    if(pathToGetWeapon.path) {
+                        return { type: EVENT_GAME.RUNNING, path: pathToGetWeapon.path, tick: "RUN TO GET WEAPON" };
+                    }
                 }
                 // Vu khi dang roi
             }
