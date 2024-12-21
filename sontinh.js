@@ -1,6 +1,7 @@
 import { connect } from 'socket.io-client';
 import { GameMap } from './machineAi.js';
 import { GameMapChild } from './child.js';
+import _ from 'lodash';
 import { SERVER_CONFIG, EVENT_GAME, SOCKET_EVENTS } from './config.js';
 
 const socket = connect(SERVER_CONFIG.API_SERVER, SERVER_CONFIG.SOCKET_OPTIONS);
@@ -35,11 +36,12 @@ socket.on('join game', (res) => {
     });
 });
 
-
 const gameMap = new GameMap(socket, playerId);
+
 const gameMapChild = new GameMapChild(socket, playerId)
+
 socket.on('ticktack player', (res) => {
+    const resClone = _.cloneDeep(res);
     gameMap.handleTicktack(res);
-    gameMapChild.handleTicktack(res);
-       
+    gameMapChild.handleTicktack(resClone);
 });

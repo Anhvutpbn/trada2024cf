@@ -133,10 +133,10 @@ class GameMapChild {
                 this.player = new GamePlayerChild(this, currentPlayer);
             }
 
-            // this.addBombs(res.map_info.bombs)
-            // this.removeExpiredBombs()
-            // this.replaceBombExplosionOnMap()
-            this.printMap2DV2(this.map)
+            this.addBombs(res.map_info.bombs)
+            this.removeExpiredBombs()
+            this.replaceBombExplosionOnMap()
+            this.printMap2DV2(res.map_info.map)
             if(res.map_info.weaponHammers.length > 0) {
                 this.updateMapWithICBM(res.map_info.weaponHammers, MAP_CELL.BOMB_ZONE)
             }
