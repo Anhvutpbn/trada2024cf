@@ -136,13 +136,11 @@ class GameMapChild {
             this.addBombs(res.map_info.bombs)
             this.removeExpiredBombs()
             this.replaceBombExplosionOnMap()
-            this.printMap2DV2(res.map_info.map)
             if(res.map_info.weaponHammers.length > 0) {
                 this.updateMapWithICBM(res.map_info.weaponHammers, MAP_CELL.BOMB_ZONE)
             }
 
             if(this.map[currentPlayer.currentPosition.row][currentPlayer.currentPosition.col] == MAP_CELL.BOMB_ZONE) {
-                console.log("------RUN BOMB THOI AE OI--------")
                 const runningPath = this.findEscapePath(this.playerPosition(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col))
                 if(runningPath) {
                     return { type: EVENT_GAME.RUNNING, path: runningPath, tick: "RUN BOMB AWAY" };
@@ -260,8 +258,11 @@ class GameMapChild {
                 this.player.playerInfo.power,
                 this.map
             )
-            
-            if(boxPath) {
+            console.log(this.bombs)
+            // kieemr tra khong con bomb moi dat bomb
+            const hasBombOnTheMap = this.bombs.find(p => this.playerId == p.id);
+            console.log(hasBombOnTheMap)
+            if(boxPath && !hasBombOnTheMap) {
                 return { type: EVENT_GAME.BOMBED, path: boxPath, tick: "BOMBED 0" };
             } else {
                 if (this.hasValueBALK(currentPlayer.currentPosition.row, currentPlayer.currentPosition.col)) {
@@ -539,7 +540,7 @@ class GameMapChild {
         removeExpiredBombs() {
             const currentTimestamp = Date.now();
             this.bombs = this.bombs.filter(bomb => {
-                return currentTimestamp - bomb.created_date_local <= 3000; 
+                return currentTimestamp - bomb.created_date_local <= 3300; 
             });
         }
         

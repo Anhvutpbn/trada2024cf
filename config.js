@@ -1,7 +1,7 @@
 // Server Configuration
 export const SERVER_CONFIG = {
-    API_SERVER: 'http://192.168.1.111/',
-    GAME_ID: '050c4bc5-689b-4b13-8d2c-38f40941b687',
+    API_SERVER: 'http://192.168.1.126/',
+    GAME_ID: '736b9a0e-4fa8-4c2e-8a19-a60d4200eb70',
     PLAYER_ID: 'player1-xxx',
     PLAYER_ID_JOIN_GAME: 'player1-xxx',
     SOCKET_OPTIONS: {

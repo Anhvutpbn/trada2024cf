@@ -466,7 +466,7 @@ class GameMap {
         );
       
         // Kiểm tra nếu khoảng cách nằm trong khoảng [3, 5]
-        return distance >= 2 && distance <= 5;
+        return distance >= 3 && distance <= 6;
       };
       
     findEnemiesWithinRange = (playerPosition, enemies) => {
